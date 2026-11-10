@@ -1,0 +1,10 @@
+{
+  "name": "ai-chat-assistant",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AI 聊天助手 — EdgeOne Makers Agent 后端（平台 AI Gateway，零第三方依赖）",
+  "scripts": {
+    "build": "node -e \"console.log('[ai-chat-assistant] 纯静态前端，无需构建')\""
+  }
+}
