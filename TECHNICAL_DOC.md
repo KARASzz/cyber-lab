@@ -206,7 +206,12 @@ data: [DONE]\n\n
 
 ## 6. 本地开发与部署
 
-**前置**：Node 20+、EdgeOne CLI ≥ 1.6.7（本机 1.6.47）、已登录腾讯云账号。所有 `edgeone` 命令前置 `export PAGES_SOURCE=skills`。
+**前置**：Node 20+、EdgeOne CLI ≥ 1.6.7（本机已于 2026-11-10 升级到 **1.7.2**，当前最新）、已登录腾讯云账号。所有 `edgeone` 命令前置 `export PAGES_SOURCE=skills`。
+
+**安装 / 升级 CLI【事实，2026-11-10 实测】**：优先用专家包自带安装器 `bash <专家包>/bin/makers-install-cli --force`（自动测速选源 + 版本校验 + 失败换源；该脚本文件无可执行位，必须显式用 `bash` 调用）。本次升级踩到两个坑，Codex 环境可复现：
+
+- 镜像源 `registry.npmmirror.com` 当时缺依赖 `@edgeone/pages-blob@0.0.19`，报 `ETARGET`；官方源正常。遇到此错直接改用 `npm install -g edgeone@latest --registry=https://registry.npmjs.org`。
+- npm 的旧版备份目录 `.edgeone-xxx` 残留会导致 `ENOTEMPTY`：**脚本可能报失败退出，但 CLI 其实已升级成功**。不要只看脚本退出码，用 `edgeone -v` + `npm ls -g edgeone --depth=0` 独立复核，并检查依赖树无 `invalid` / `unmet` / `missing`。残留目录建议移到 `/tmp` 保留回滚，不要直接删。
 
 ```bash
 cd ai-chat-assistant
@@ -224,7 +229,7 @@ edgeone makers dev --name ai-chat-assistant --skip-env-sync
 edgeone makers deploy --json
 ```
 
-**CLI 参数【文档，来自 `--help`，1.6.47】**
+**CLI 参数【文档，来自 `--help`，1.7.2；与 1.6.47 逐项对比无变化】**
 
 | 命令 | 参数 |
 |---|---|
@@ -262,6 +267,7 @@ curl -sS -N -b /tmp/cj.txt -X POST "$BASE/api/chat" \
 | 2026-11-09 14:2x | 模型切换 | 改为 `@makers/deepseek-v4.1-flash`（代码默认值 + 生产环境变量双保险） | `dpd7oxngvn83` |
 | 2026-11-09 16:xx | 赛博朋克重做 | 项目管理 + 系统指令模式 + 霓虹视觉 + Markdown | `dp91hb9ypd7d` |
 | 2026-11-09 17:2x | 最终部署 | 前后端合并上线，线上 6 项验证全通过 | `dp91hb9ypd7d` |
+| 2026-11-10 16:5x | CLI 升级 | EdgeOne CLI `1.6.47` → `1.7.2`；登录态、link、环境变量、`deploy`/`dev` 参数逐项复核通过 | 无新部署 |
 
 ### 已完成
 
@@ -280,6 +286,7 @@ curl -sS -N -b /tmp/cj.txt -X POST "$BASE/api/chat" \
 | `edgeone.json` deprecated | `cloudFunctions.nodejs.includeFiles` 被 CLI 提示将移除 | 构建仍成功，建议后续迁移为 `cloudFunctions.includeFiles` |
 | SSE 不回传模型标识 | 响应只有 delta / error / DONE | 无法从响应直接确认实际调用的模型，建议在响应头加 `X-AI-Model` |
 | 无 `/stop` 端点 | 停止生成靠前端 AbortController | 目前可用；若做服务端会话持久化则需补 |
+| CLI 升级后未做部署回归 | 2026-11-10 升到 1.7.2，只复核了 `--help` / `whoami` / `env ls` / 依赖树 | 下一次 `edgeone makers deploy --json` 时留意输出格式是否变化，建议先在 preview 环境试一次 |
 | 文档会被静态部署 | `TECHNICAL_DOC.md` 在项目根目录 | 公网可读，故不含任何凭据 |
 | 项目尚无 git 仓库 | 本机 `gh` 已登录 `KARASzz` | 见第 8 节 |
 
@@ -343,7 +350,7 @@ gh repo create ai-chat-assistant --private --source=. --remote=origin --push
 | Makers Models 统一网关 / 多 SDK 兼容 | 平台官方口径 | https://pages.edgeone.ai/document/models |
 | 「8+ 模型供应商」「50 万免费 tokens」「零平台费」 | **平台宣传口径**，未独立核实 | https://pages.edgeone.ai/use-cases/ai-agent-gateway |
 | 厂商模型 ID 格式 `provider/model`、需绑定 BYOK Key | 平台官方口径 | https://edgeone.ai/document/211331008216948736 |
-| CLI 参数、非交互 flag、路由规则 | 本机 1.6.47 `--help` 与专家包 `makers-agents` / `makers-cloud-functions` 文档 | 本地实测 |
+| CLI 参数、非交互 flag、路由规则 | 本机 1.7.2 `--help`（并对照过 1.6.47）与专家包 `makers-agents` / `makers-cloud-functions` 文档 | 本地实测 |
 | 8 个模型可用、`zhuque-text` 为分类接口、`/v1/models` 404 | **本项目账号实测**（2026-11-09） | 见第 4.4 节 |
 | 接口响应、错误码、部署与验证结果 | **生产环境实测** | 见第 4 / 7 节 |
 
