@@ -12,19 +12,30 @@
  */
 
 import { chatGenerator, validateAndNormalize } from '../_chat';
-import { createSSEResponse, jsonResponse } from '../_shared';
+import { createSSEResponse, jsonResponse, requestIdFrom, safeModelHeader } from '../_shared';
+import { resolveGateway } from '../_model';
 
 export async function onRequest(context: any): Promise<Response> {
   const rawBody = context?.request?.body ?? {};
   const signal = context?.request?.signal as AbortSignal | undefined;
   // ⭐ 环境变量只能从 context.env 读取，禁止 process.env
   const env = (context?.env ?? {}) as Record<string, string | undefined>;
+  const headers = context?.request?.headers;
+  const incomingId = typeof headers?.get === 'function'
+    ? headers.get('x-request-id') : headers?.['x-request-id'] ?? headers?.['X-Request-Id'];
+  const requestId = requestIdFrom(incomingId);
 
-  // 参数校验前置：HTTP 400 + JSON（契约允许用非 2xx 表示错误）
   const check = validateAndNormalize(rawBody);
   if ('error' in check) {
-    return jsonResponse({ error: check.error }, 400);
+    return jsonResponse({ error: check.error }, 400, { 'X-Request-Id': requestId });
   }
 
-  return createSSEResponse((sig) => chatGenerator(rawBody, env, sig), signal);
+  const responseHeaders: Record<string, string> = { 'X-Request-Id': requestId, 'X-AI-Route': 'agent' };
+  try {
+    const model = safeModelHeader(resolveGateway(env).model);
+    if (model) responseHeaders['X-AI-Model'] = model;
+  } catch {
+    return jsonResponse({ error: 'AI 网关配置不可用' }, 503, { 'X-Request-Id': requestId });
+  }
+  return createSSEResponse((sig) => chatGenerator(rawBody, env, sig), signal, responseHeaders);
 }

@@ -226,3 +226,9 @@ __marimo__/
 .edgeone/
 .env.*
 !.env.example
+
+# 前端开发依赖和浏览器测试产物
+/node_modules/
+/test-results/
+/playwright-report/
+/playwright/.cache/

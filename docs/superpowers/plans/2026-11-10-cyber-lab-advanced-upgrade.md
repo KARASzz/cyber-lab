@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> 本仓库默认由主线程内联执行；只有用户明确要求委派时才使用子智能体。本计划尚未获得实施批准。
+> 本仓库默认由主线程内联执行；只有用户明确要求委派时才使用子智能体。本计划已获实施授权；preview 和生产发布仍须单独授权。下方复选框保留原计划，实际实现与验证边界以 `TECHNICAL_DOC.md` 为准。
 
 **Goal:** 将现有 NEON//CHAT 从“霓虹聊天页”升级为以实验记录、可复现上下文、真实运行状态和数据自主权为核心的 CYBER//LAB 极客实验室，同时保持现有聊天能力与本地数据向后兼容。
 

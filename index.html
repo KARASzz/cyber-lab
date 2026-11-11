@@ -3,252 +3,178 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#04060f" />
-  <meta name="description" content="NEON//CHAT — 赛博朋克 AI 工作台：项目管理、系统指令模式、实时流式对话" />
-  <title>NEON//CHAT · 霓虹工作台</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%2300f0ff'/%3E%3Cstop offset='1' stop-color='%23ff2bd6'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='12' fill='%23040a16'/%3E%3Cpath d='M32 8l6 18 18 6-18 6-6 18-6-18-18-6 18-6z' fill='url(%23g)'/%3E%3C/svg%3E" />
+  <meta name="theme-color" content="#07090d" />
+  <meta name="description" content="CYBER//LAB 赛博实验室：记录实验、管理上下文并观察真实运行状态。" />
+  <title>CYBER//LAB · 赛博实验室</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%230d1117'/%3E%3Cpath d='M32 7l6 19 19 6-19 6-6 19-6-19-19-6 19-6z' fill='%2368f5c2'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="./styles/lab.css" />
 </head>
 <body>
-  <!-- 轻量粒子层：无外部库，低帧率、无 shadowBlur，尊重 reduced-motion -->
-  <canvas id="fx-canvas" class="fx-canvas" aria-hidden="true"></canvas>
-
-  <!-- 纯 CSS 背景：透视网格 / 扫描线 / 霓虹光晕（不使用全屏 blur 动画） -->
-  <div class="bg-decor" aria-hidden="true">
-    <span class="glow glow-cyan"></span>
-    <span class="glow glow-magenta"></span>
-    <span class="glow glow-violet"></span>
-    <div class="grid-floor"><span></span></div>
-    <div class="scanlines"></div>
-    <div class="scanbeam"></div>
-  </div>
-
-  <div class="app-shell">
-    <!-- ============ 顶栏 ============ -->
-    <header class="topbar">
+  <div class="app-shell" id="lab-app">
+    <header class="topbar" id="lab-topbar">
       <div class="topbar-left">
-        <button id="menu-btn" class="icon-btn menu-btn" type="button" aria-label="打开项目栏" aria-expanded="false">
+        <button id="menu-btn" class="icon-btn menu-btn" type="button" aria-label="打开项目栏" aria-expanded="false" aria-controls="sidebar">
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/></svg>
         </button>
         <div class="brand">
-          <span class="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M20 3l4.4 12.6L37 20l-12.6 4.4L20 37l-4.4-12.6L3 20l12.6-4.4L20 3z" fill="currentColor"/>
-              <circle cx="32" cy="8" r="2.4" fill="currentColor" opacity=".8"/>
-            </svg>
-          </span>
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 3l4.4 12.6L37 20l-12.6 4.4L20 37l-4.4-12.6L3 20l12.6-4.4z" fill="currentColor"/></svg></span>
           <div class="brand-copy">
-            <h1 class="glitch" data-text="NEON//CHAT">NEON//CHAT</h1>
-            <p><span class="status-dot" aria-hidden="true"></span><span id="link-status">神经链路 · 已连接</span></p>
+            <h1>CYBER//LAB</h1>
+            <p>赛博实验室 · EXPERIMENTAL INTELLIGENCE CONSOLE</p>
           </div>
         </div>
       </div>
-
       <div class="topbar-right">
-        <button id="sys-badge" class="sys-badge" type="button" aria-label="打开系统指令设置">
-          <span class="sys-badge-ico" aria-hidden="true">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2L4 11h5l-1 7 8-10h-5l1-6z"/></svg>
-          </span>
-          <span class="sys-badge-text" id="sys-badge-text">指令模式 · 关闭</span>
+        <button id="lab-command-btn" class="lab-command-button" type="button" aria-label="打开命令与搜索 ⌘K" aria-haspopup="dialog">
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M12.5 12.5L17 17"/></svg><span>命令与搜索 <kbd aria-hidden="true">⌘K</kbd></span>
+        </button>
+        <span id="lab-network" class="lab-network">浏览器网络状态未知</span>
+        <span id="link-status" class="lab-network">待发起实验</span>
+        <button id="sys-badge" class="sys-badge" type="button" aria-label="打开实验协议设置" aria-controls="sys-panel">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2L4 11h5l-1 7 8-10h-5l1-6z"/></svg><span class="sys-badge-text" id="sys-badge-text">协议 · 关闭</span>
+        </button>
+        <button id="lab-observe-btn" class="lab-observe-button" type="button" aria-label="打开观测台" aria-expanded="false" aria-controls="sys-panel">
+          <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/><circle cx="7" cy="5" r="1.8" fill="currentColor"/><circle cx="13" cy="10" r="1.8" fill="currentColor"/><circle cx="8" cy="15" r="1.8" fill="currentColor"/></svg><span>观测台</span>
         </button>
         <span class="topbar-clock" id="topbar-clock" aria-hidden="true">--:--:--</span>
       </div>
     </header>
 
+    <div id="lab-storage-warning" class="lab-storage-warning" role="alert" hidden></div>
     <div class="workspace">
-      <!-- ============ 左侧项目栏 ============ -->
-      <aside class="sidebar" id="sidebar" aria-label="项目与会话">
+      <aside class="sidebar" id="sidebar" aria-label="实验库">
         <div class="sidebar-head">
-          <div>
-            <p class="eyebrow">WORKSPACE // 01</p>
-            <h2>项目矩阵</h2>
-          </div>
-          <button id="sidebar-close" class="icon-btn sidebar-close" type="button" aria-label="关闭项目栏">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>
-          </button>
+          <div><p class="eyebrow">LIBRARY // 本地实验库</p><h2>实验库</h2></div>
+          <button id="sidebar-close" class="icon-btn sidebar-close" type="button" aria-label="关闭项目栏"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
         </div>
-
-        <button id="new-project-btn" class="btn-new-project" type="button">
-          <span class="ico" aria-hidden="true">
-            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>
-          </span>
-          <span>新建项目</span>
-          <span class="btn-key" aria-hidden="true">+N</span>
-        </button>
-
-        <div id="project-list" class="project-list" role="tree" aria-label="项目列表"></div>
-
+        <button id="new-project-btn" class="btn-new-project" type="button"><span class="ico" aria-hidden="true"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 4v12M4 10h12"/></svg></span><span>新建实验项目</span></button>
+        <button id="lab-sidebar-search" type="button">搜索实验、标签或笔记…</button>
+        <div id="project-list" class="project-list" aria-label="实验项目列表"></div>
         <div class="sidebar-foot">
           <div class="storage-line"><span class="mini-dot" aria-hidden="true"></span><span id="storage-status">本地存储 · 就绪</span></div>
-          <p class="sidebar-tip">// 数据仅保存在此浏览器</p>
+          <p class="sidebar-tip">数据仅保存在此浏览器</p>
+          <p class="sidebar-tip" id="lab-local-count">本地实验：0</p>
         </div>
       </aside>
       <div id="sidebar-overlay" class="sidebar-overlay" hidden></div>
 
-      <!-- ============ 主聊天区 ============ -->
-      <main class="chat-panel">
+      <main class="chat-panel" aria-label="实验日志">
         <div class="chat-head">
-          <div class="chat-head-main">
-            <p class="eyebrow" id="head-project">PROJECT // --</p>
-            <h2 id="head-session">新会话</h2>
-          </div>
+          <div class="chat-head-main"><p class="eyebrow" id="head-project">PROJECT // --</p><h2 id="head-session">新实验</h2></div>
           <div class="chat-head-actions">
-            <button id="head-sys-chip" class="head-chip" type="button" aria-label="系统指令设置">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 2L4 11h5l-1 7 8-10h-5l1-6z"/></svg>
-              <span id="head-sys-chip-text">指令关闭</span>
-            </button>
-            <button id="new-session-btn" class="head-chip" type="button">
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>
-              <span>新建会话</span>
-            </button>
+            <button id="head-sys-chip" class="head-chip" type="button" aria-label="实验协议设置"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M11 2L4 11h5l-1 7 8-10h-5l1-6z"/></svg><span id="head-sys-chip-text">协议关闭</span></button>
+            <button id="new-session-btn" class="head-chip" type="button" aria-label="新建实验"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg><span>新建实验</span></button>
           </div>
         </div>
-
-        <div id="scroller" class="scroller" role="log" aria-label="对话内容">
-          <!-- 空状态 / 欢迎引导 -->
+        <div id="scroller" class="scroller" role="log" aria-label="实验对话" aria-live="off" tabindex="0">
           <section id="empty-state" class="empty-state" aria-labelledby="empty-title">
-            <div class="empty-visual" aria-hidden="true">
-              <span class="empty-ring ring-a"></span>
-              <span class="empty-ring ring-b"></span>
-              <span class="empty-core">
-                <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M24 4l5 13 13 5-13 5-5 13-5-13-13-5 13-5 5-13z" fill="currentColor"/><circle cx="39" cy="9" r="2.6" fill="currentColor" opacity=".85"/></svg>
-              </span>
-              <span class="empty-spark spark-a"></span>
-              <span class="empty-spark spark-b"></span>
-              <span class="empty-spark spark-c"></span>
-            </div>
-            <p class="eyebrow">SESSION READY // 空闲通道</p>
-            <h2 id="empty-title">连接已建立，开始对话</h2>
-            <p class="empty-sub" id="empty-sub">在下方输入你的第一条指令。当前项目未启用系统指令模式。</p>
-
-            <div class="suggestions" id="suggestions" aria-label="示例提问">
-              <button class="suggestion tint-1" type="button" data-prompt="用简单易懂的话解释一下什么是大语言模型，并举一个生活中的例子。">
-                <span class="suggestion-ico" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 00-3.6 10.8c.5.4.8 1 .8 1.7v.5h5.6v-.5c0-.7.3-1.3.8-1.7A6 6 0 0012 3z"/></svg>
-                </span>
-                <span class="suggestion-body"><strong>解释一个概念</strong><small>用通俗语言讲清大语言模型</small></span>
-                <svg class="suggestion-arrow" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+            <p class="eyebrow">EXPERIMENT READY // 准备就绪</p>
+            <h2 id="empty-title">把问题变成可复现的实验。</h2>
+            <p class="empty-sub" id="empty-sub">选择一个实验卡片或输入问题，开始记录你的第一项实验。</p>
+            <div class="suggestions" id="suggestions" aria-label="实验卡片">
+              <button class="suggestion" type="button" data-prompt="帮我实现以下功能：请先列出关键约束，再提供可运行的代码和必要测试。">
+                <span class="suggestion-ico" aria-hidden="true">01</span><span class="suggestion-body"><strong>代码实现</strong><small>从需求到可验证的实现</small></span><span class="suggestion-arrow" aria-hidden="true">↗</span>
               </button>
-              <button class="suggestion tint-2" type="button" data-prompt="帮我写一段 Python 代码，统计列表中每个元素出现的次数，并附上简要说明。">
-                <span class="suggestion-ico" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8l-4 4 4 4M16 8l4 4-4 4M14 5l-4 14"/></svg>
-                </span>
-                <span class="suggestion-body"><strong>写一段代码</strong><small>Python 统计列表元素次数</small></span>
-                <svg class="suggestion-arrow" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+              <button class="suggestion" type="button" data-prompt="请从正确性、安全性和可维护性三个角度评审以下方案，并按严重程度给出可执行建议。">
+                <span class="suggestion-ico" aria-hidden="true">02</span><span class="suggestion-body"><strong>技术评审</strong><small>识别风险并给出改进建议</small></span><span class="suggestion-arrow" aria-hidden="true">↗</span>
               </button>
-              <button class="suggestion tint-3" type="button" data-prompt="给我三个提升远程工作效率的实用建议，每个建议说明具体怎么做。">
-                <span class="suggestion-ico" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M3.5 6l1 1 2-2M3.5 12l1 1 2-2M3.5 18l1 1 2-2"/></svg>
-                </span>
-                <span class="suggestion-body"><strong>给我一些建议</strong><small>三个提升远程效率的方法</small></span>
-                <svg class="suggestion-arrow" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+              <button class="suggestion" type="button" data-prompt="请帮我梳理以下技术问题：说明背景、可选方案、取舍和需要进一步验证的事实。">
+                <span class="suggestion-ico" aria-hidden="true">03</span><span class="suggestion-body"><strong>技术调研</strong><small>比较方案与待验证的问题</small></span><span class="suggestion-arrow" aria-hidden="true">↗</span>
               </button>
-              <button class="suggestion tint-4" type="button" data-prompt="帮我把这段话改写得更有说服力：「我们需要尽快完成这个项目」。请给出三个不同语气的版本。">
-                <span class="suggestion-ico" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L8 18l-4 1 1-4L16.5 3.5z"/></svg>
-                </span>
-                <span class="suggestion-body"><strong>帮我润色文字</strong><small>把一句话改得更有说服力</small></span>
-                <svg class="suggestion-arrow" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11M11 6l4 4-4 4"/></svg>
+              <button class="suggestion" type="button" data-prompt="针对下面的目标提出三个不同角度的创意，每个方案说明亮点、风险与最小验证步骤。">
+                <span class="suggestion-ico" aria-hidden="true">04</span><span class="suggestion-body"><strong>创意发散</strong><small>探索不同路径与最小验证</small></span><span class="suggestion-arrow" aria-hidden="true">↗</span>
               </button>
             </div>
           </section>
-
-          <!-- 消息列表 -->
           <div id="messages" class="messages" hidden></div>
         </div>
-
-        <!-- 回到底部 -->
-        <button id="scroll-bottom-btn" class="scroll-bottom" type="button" aria-label="回到底部" hidden>
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4v12M6 12l4 4 4-4"/></svg>
-        </button>
-
-        <!-- 底部 composer -->
+        <button id="scroll-bottom-btn" class="scroll-bottom" type="button" aria-label="回到最新消息" hidden><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M10 4v12M6 12l4 4 4-4"/></svg></button>
         <div class="composer-wrap">
           <div class="composer" id="composer">
-            <span class="composer-corner corner-tl" aria-hidden="true"></span>
-            <span class="composer-corner corner-br" aria-hidden="true"></span>
-            <div class="composer-scan" aria-hidden="true"></div>
-            <textarea id="input" rows="1" maxlength="4000" placeholder="输入指令…" aria-label="输入消息" autocomplete="off" spellcheck="false"></textarea>
+            <textarea id="input" rows="1" maxlength="4000" placeholder="输入实验问题或指令…" aria-label="输入消息" autocomplete="off" spellcheck="false"></textarea>
             <div class="composer-bar">
-              <div class="composer-meta">
-                <span id="char-count" class="char-count">0 / 4000</span>
-                <span class="hint"><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span>
-                <span id="composer-mode" class="composer-mode">STANDARD</span>
-              </div>
-              <button id="send-btn" class="btn-send" type="button" aria-label="发送消息">
-                <svg class="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12l16-8-6 16-2.8-6.2L4 12z"/><path d="M11.2 13.8L20 4"/></svg>
-                <svg class="icon-stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" hidden><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg>
-              </button>
+              <div class="composer-meta"><span id="char-count" class="char-count">0 / 4000</span><span class="hint"><kbd>Enter</kbd> 发送 · <kbd>Shift</kbd>+<kbd>Enter</kbd> 换行</span><span id="composer-mode" class="composer-mode">STANDARD</span></div>
+              <button id="send-btn" class="btn-send" type="button" aria-label="发送消息"><svg class="icon-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" aria-hidden="true"><path d="M4 12l16-8-6 16-2.8-6.2L4 12zM11.2 13.8L20 4"/></svg><svg class="icon-stop" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" hidden><rect x="6.5" y="6.5" width="11" height="11" rx="2"/></svg></button>
             </div>
           </div>
-          <p class="disclaimer">// 内容由 AI 生成，仅供参考，请自行核实重要信息 · 会话数据仅存于本地浏览器</p>
+          <p class="disclaimer">AI 生成内容仅供参考，请核实重要信息。实验数据保存在本地浏览器。</p>
         </div>
       </main>
-    </div>
-  </div>
 
-  <!-- ============ 系统指令抽屉 ============ -->
-  <div id="sys-overlay" class="drawer-overlay" hidden></div>
-  <section id="sys-panel" class="sys-panel" aria-label="系统指令模式" hidden>
-    <header class="sys-head">
-      <div>
-        <p class="eyebrow">SYSTEM DIRECTIVE // 项目级</p>
-        <h2>系统指令模式</h2>
-      </div>
-      <button id="sys-close" class="icon-btn" type="button" aria-label="关闭系统指令设置">
-        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg>
-      </button>
-    </header>
-
-    <div class="sys-body">
-      <div class="sys-switch-row">
-        <div class="sys-switch-copy">
-          <strong>启用项目级指令</strong>
-          <p>开启后，此项目下所有会话的请求都会携带该指令。</p>
+      <aside id="sys-panel" class="sys-panel lab-inspector" aria-label="实验观测台" inert>
+        <header class="sys-head">
+          <div><p class="eyebrow">CONFIG / OBSERVE</p><h2>实验观测台</h2></div>
+          <button id="sys-close" class="icon-btn" type="button" aria-label="关闭观测台"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button>
+        </header>
+        <div class="sys-body">
+          <section aria-labelledby="lab-protocol-title">
+            <h3 id="lab-protocol-title">实验协议</h3>
+            <div class="sys-switch-row">
+              <div class="sys-switch-copy"><strong>启用项目级协议</strong><p>开启后，此项目下的实验请求会携带该协议。</p></div>
+              <label class="switch" aria-label="启用系统指令"><input type="checkbox" id="sys-enabled" /><span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span></label>
+            </div>
+            <div class="sys-section"><div class="sys-section-head"><span>协议预设</span><small>点击套用并启用</small></div><div id="preset-list" class="preset-list"></div></div>
+            <div class="sys-section"><div class="sys-section-head"><label for="sys-input">协议内容</label><span id="sys-count" class="sys-count">0 / 4000</span></div><textarea id="sys-input" rows="7" placeholder="例如：先给结论，再提供可运行代码…" aria-label="系统指令内容" spellcheck="false"></textarea><p id="sys-warn" class="sys-warn" hidden>协议超过 4000 字，当前修改未保存，请精简后重试。</p><p class="sys-note">按去除首尾空白后的字符数计算；关闭或内容为空时不会随请求发送。</p></div>
+          </section>
+          <section class="lab-section" aria-labelledby="lab-observe-title">
+            <h3 id="lab-observe-title">本次观测</h3>
+            <p id="lab-run-state" class="lab-status" data-state="idle">待发起实验</p>
+            <dl class="lab-metric-list">
+              <dt>请求模型</dt><dd id="lab-metric-model">未提供</dd>
+              <dt>实际路径</dt><dd id="lab-metric-route">未提供</dd>
+              <dt>请求 ID</dt><dd id="lab-metric-request-id">未提供</dd>
+              <dt>首响应</dt><dd id="lab-metric-headers">未提供</dd>
+              <dt>首 token</dt><dd id="lab-metric-first-token">未提供</dd>
+              <dt>总耗时</dt><dd id="lab-metric-duration">未提供</dd>
+              <dt>结果字符</dt><dd id="lab-metric-characters">未提供</dd>
+              <dt>历史消息</dt><dd id="lab-metric-history">未提供</dd>
+              <dt>协议字符</dt><dd id="lab-metric-prompt">未提供</dd>
+            </dl>
+          </section>
+          <section class="lab-section" aria-labelledby="lab-notes-title">
+            <h3 id="lab-notes-title">标签与实验结论</h3>
+            <div id="lab-tags-list" class="lab-tags" role="group" aria-label="实验标签"></div>
+            <div class="lab-tag-input-row"><label class="lab-live" for="lab-tag-input">添加标签</label><input id="lab-tag-input" type="text" maxlength="20" placeholder="添加标签" /><button id="lab-tag-add" type="button">添加</button></div>
+            <label for="lab-notes">实验笔记</label><textarea id="lab-notes" class="lab-notes" maxlength="12000" rows="5" placeholder="记录结论、后续问题或验证结果…"></textarea>
+            <div id="lab-note-status" class="lab-note-status">笔记保存在本地</div>
+          </section>
+          <section class="lab-section" aria-labelledby="lab-data-title">
+            <h3 id="lab-data-title">数据与诊断</h3>
+            <div class="lab-actions"><button id="lab-export-md" type="button">导出实验 Markdown</button><button id="lab-export-json" type="button">备份工作区 JSON</button><button id="lab-import-open" type="button">导入备份</button><button id="lab-copy-diagnostic" type="button">复制诊断</button></div>
+          </section>
         </div>
-        <label class="switch" aria-label="启用系统指令">
-          <input type="checkbox" id="sys-enabled" />
-          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
-        </label>
-      </div>
-
-      <div class="sys-section">
-        <div class="sys-section-head"><span>预设模板</span><small>点击即套用并启用</small></div>
-        <div id="preset-list" class="preset-list"></div>
-      </div>
-
-      <div class="sys-section">
-        <div class="sys-section-head"><span>指令内容</span><span id="sys-count" class="sys-count">0 / 4000</span></div>
-        <textarea id="sys-input" rows="9" placeholder="例如：你是一名资深前端工程师，回答时先给结论，再给可运行的代码…" aria-label="系统指令内容" spellcheck="false"></textarea>
-        <p id="sys-warn" class="sys-warn" hidden>// 超出 4000 字上限，超出部分不会被保存，也不会随请求发送。</p>
-        <p class="sys-note">// 字数按去除首尾空白后计算；修改实时保存；停用或内容为空时，请求体完全不带 systemPrompt 字段。</p>
-      </div>
-    </div>
-
-    <footer class="sys-foot">
-      <span id="sys-save-state" class="sys-save-state">已保存</span>
-      <button id="sys-done" class="btn-primary" type="button">完成</button>
-    </footer>
-  </section>
-
-  <!-- ============ 通用弹窗（新建 / 重命名 / 删除确认） ============ -->
-  <div id="modal-overlay" class="modal-overlay" hidden>
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-      <span class="modal-corner tl" aria-hidden="true"></span>
-      <span class="modal-corner br" aria-hidden="true"></span>
-      <p class="eyebrow" id="modal-eyebrow">CONFIRM // 确认</p>
-      <h2 id="modal-title">确认操作</h2>
-      <p id="modal-desc" class="modal-desc" hidden></p>
-      <div id="modal-input-wrap" class="modal-input-wrap" hidden>
-        <input id="modal-input" type="text" maxlength="60" autocomplete="off" spellcheck="false" aria-label="输入名称" />
-      </div>
-      <div class="modal-actions">
-        <button id="modal-cancel" class="btn-ghost" type="button">取消</button>
-        <button id="modal-confirm" class="btn-primary" type="button">确定</button>
-      </div>
+        <footer class="sys-foot"><span id="sys-save-state" class="sys-save-state">已保存</span><button id="sys-done" class="btn-ghost" type="button">完成</button></footer>
+      </aside>
     </div>
   </div>
 
-  <script src="./app.js" defer></script>
+  <div id="sys-overlay" class="drawer-overlay" hidden></div>
+  <div id="lab-announcement" class="lab-live" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <dialog id="modal-overlay" class="modal-overlay" aria-labelledby="modal-title" hidden>
+    <div class="modal">
+      <p class="eyebrow" id="modal-eyebrow">CONFIRM // 确认</p><h2 id="modal-title">确认操作</h2><p id="modal-desc" class="modal-desc" hidden></p>
+      <div id="modal-input-wrap" class="modal-input-wrap" hidden><input id="modal-input" type="text" maxlength="60" autocomplete="off" spellcheck="false" aria-label="输入名称" /></div>
+      <div class="modal-actions"><button id="modal-cancel" class="btn-ghost" type="button">取消</button><button id="modal-confirm" class="btn-primary" type="button">确定</button></div>
+    </div>
+  </dialog>
+
+  <dialog id="lab-command-dialog" class="lab-command-dialog" aria-labelledby="lab-command-title" hidden>
+    <h2 id="lab-command-title">命令与搜索</h2>
+    <label for="lab-command-input">搜索实验或输入命令</label>
+    <input id="lab-command-input" type="search" autocomplete="off" placeholder="搜索标题、标签、笔记或消息…" role="combobox" aria-expanded="true" aria-controls="lab-command-list" />
+    <div id="lab-command-list" class="lab-command-list" role="listbox" aria-label="命令与搜索结果"></div>
+    <div class="lab-dialog-actions"><button id="lab-command-close" class="btn-ghost" type="button">关闭</button></div>
+  </dialog>
+
+  <dialog id="lab-import-dialog" class="lab-import-dialog" aria-labelledby="lab-import-title" hidden>
+    <h2 id="lab-import-title">导入工作区备份</h2>
+    <p>选择 JSON 备份，确认前会检查内容与容量。导入将合并，不覆盖当前项目。</p>
+    <label for="lab-import-file">选择 JSON 备份文件</label><input id="lab-import-file" type="file" accept="application/json,.json" />
+    <p id="lab-import-summary">尚未选择文件。</p>
+    <div class="lab-dialog-actions"><button id="lab-import-cancel" class="btn-ghost" type="button">取消</button><button id="lab-import-confirm" class="btn-primary" type="button" disabled>确认导入</button></div>
+  </dialog>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

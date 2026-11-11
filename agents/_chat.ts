@@ -10,7 +10,7 @@
  */
 
 import { resolveGateway } from './_model';
-import { sseData, SSE_DONE } from './_shared';
+import { createGatewaySSEParser, sseData, SSE_DONE } from './_shared';
 
 export const SYSTEM_PROMPT = [
   '你是一位专业、友好且耐心的中文 AI 助手。',
@@ -135,6 +135,7 @@ export async function* chatGenerator(
   contextEnv: Record<string, string | undefined> | undefined,
   signal?: AbortSignal,
 ): AsyncGenerator<string> {
+  if (signal?.aborted) return;
   const parsed = validateAndNormalize(rawBody);
   if ('error' in parsed) {
     yield sseData({ error: parsed.error });
@@ -154,13 +155,19 @@ export async function* chatGenerator(
   const upstreamController = new AbortController();
   let idleTimer: ReturnType<typeof setTimeout> | undefined;
   let hardTimer: ReturnType<typeof setTimeout> | undefined;
-  const abortUpstream = (): void => upstreamController.abort();
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  let timedOut = false;
+  const abortUpstream = (): void => {
+    upstreamController.abort();
+    if (reader) void reader.cancel().catch(() => {});
+  };
+  const timeoutUpstream = (): void => { timedOut = true; abortUpstream(); };
   const resetIdle = (): void => {
     if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(abortUpstream, IDLE_TIMEOUT_MS);
+    idleTimer = setTimeout(timeoutUpstream, IDLE_TIMEOUT_MS);
   };
   signal?.addEventListener?.('abort', abortUpstream, { once: true });
-  hardTimer = setTimeout(abortUpstream, MAX_DURATION_MS);
+  hardTimer = setTimeout(timeoutUpstream, MAX_DURATION_MS);
   resetIdle();
 
   const cleanup = (): void => {
@@ -185,24 +192,17 @@ export async function* chatGenerator(
       }),
       signal: upstreamController.signal,
     });
-  } catch (e) {
+  } catch (_error) {
     cleanup();
-    const err = e as Error;
-    if (signal?.aborted || err?.name === 'AbortError') {
-      yield SSE_DONE;
-      return;
-    }
-    yield sseData({ error: `连接 AI 网关失败：${err?.message || '未知错误'}` });
+    if (signal?.aborted) return;
+    yield sseData({ error: timedOut ? '生成超时或上游连接中断，请重试' : '连接 AI 网关失败，请重试' });
     yield SSE_DONE;
     return;
   }
 
   try {
     if (!response.ok) {
-      const detail = await response.text().catch(() => '');
-      yield sseData({
-        error: `AI 网关返回 HTTP ${response.status}${detail ? `：${detail.slice(0, 300)}` : ''}`,
-      });
+      yield sseData({ error: `AI 网关返回 HTTP ${response.status}` });
       yield SSE_DONE;
       return;
     }
@@ -212,84 +212,74 @@ export async function* chatGenerator(
       return;
     }
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finished = false;
-    let emitted = 0;
+    reader = response.body.getReader();
+    const events: string[] = [];
+    const parser = createGatewaySSEParser((payload) => events.push(payload));
+    const probeDecoder = new TextDecoder();
+    let probe = '';
+    let probing = true;
+    let eof = false;
+    let receivedEvent = false;
+    let failed = false;
 
-    while (!finished && !signal?.aborted) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      resetIdle();
-      buffer += decoder.decode(value, { stream: true });
-
-      // 上游按行推送 data: {...}，逐行解析（trim 兼容 \r\n）
-      const lines = buffer.split('\n');
-      buffer = lines.pop() ?? '';
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) continue; // 忽略 event/id/retry/注释
-        const payload = trimmed.slice(5).trim();
-        if (!payload) continue;
-        if (payload === '[DONE]') {
-          finished = true;
-          break;
-        }
-
+    while (!signal?.aborted && !timedOut) {
+      if (events.length) {
+        const payload = events.shift()!;
+        receivedEvent = true;
+        probing = false;
+        probe = '';
         let json: any;
-        try {
-          json = JSON.parse(payload);
-        } catch {
-          continue;
-        }
+        try { json = JSON.parse(payload); } catch { continue; }
         if (json?.error) {
-          const msg =
-            typeof json.error === 'string' ? json.error : json.error?.message || '未知错误';
-          yield sseData({ error: `AI 网关错误：${msg}` });
-          finished = true;
+          yield sseData({ error: 'AI 网关返回错误，请重试' });
+          failed = true;
           break;
         }
         const delta = json?.choices?.[0]?.delta?.content ?? json?.choices?.[0]?.message?.content;
         if (typeof delta === 'string' && delta.length > 0) {
           const text = cleanDelta(delta);
-          if (text) {
-            emitted += 1;
-            yield sseData({ delta: text });
-          }
+          if (text) yield sseData({ delta: text });
         }
+        continue;
+      }
+      if (parser.finished || eof) break;
+      const chunk = await reader.read();
+      if (chunk.done) {
+        eof = true;
+        parser.finish();
+        if (probing) probe += probeDecoder.decode();
+      } else {
+        resetIdle();
+        if (probing) {
+          probe += probeDecoder.decode(chunk.value, { stream: true });
+          if (probe.length > 1_000_000) { probing = false; probe = ''; }
+        }
+        parser.feed(chunk.value);
       }
     }
 
-    // 兜底：某些网关在异常时返回一整个 JSON 而非 SSE
-    if (!finished && emitted === 0 && buffer.trim()) {
+    if (!signal?.aborted && timedOut) yield sseData({ error: '生成超时或上游连接中断，请重试' });
+    else if (!signal?.aborted && !failed && !receivedEvent && !parser.finished && probe.trim()) {
       try {
-        const json = JSON.parse(buffer);
+        const json = JSON.parse(probe);
         const text = json?.choices?.[0]?.message?.content;
         if (typeof text === 'string' && text) yield sseData({ delta: cleanDelta(text) });
-      } catch {
-        /* 忽略非 JSON 残余 */
-      }
+      } catch { /* 非 JSON 的剩余数据无法转成回复 */ }
     }
-
-    yield SSE_DONE;
-  } catch (e) {
-    const err = e as Error;
-    if (signal?.aborted) {
-      // 客户端主动断开，静默结束
-    } else if (upstreamController.signal.aborted) {
-      yield sseData({ error: '生成超时或上游连接中断，请重试' });
-      yield SSE_DONE;
-    } else {
-      yield sseData({ error: `流式读取失败：${err?.message || '未知错误'}` });
+    if (!signal?.aborted) yield SSE_DONE;
+  } catch (_error) {
+    if (!signal?.aborted) {
+      yield sseData({ error: timedOut || upstreamController.signal.aborted
+        ? '生成超时或上游连接中断，请重试' : '流式读取失败，请重试' });
       yield SSE_DONE;
     }
   } finally {
     cleanup();
-    try {
-      await response.body?.cancel();
-    } catch {
-      /* 流已结束 */
+    if (reader) {
+      void reader.cancel().catch(() => {});
+      try { reader.releaseLock(); } catch { /* 读取器已释放 */ }
+    } else if (response.body && !response.body.locked) {
+      void response.body.cancel().catch(() => {});
     }
   }
 }

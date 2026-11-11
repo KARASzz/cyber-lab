@@ -1,0 +1,42 @@
+{
+  "systemPrompt": {
+    "empty": "",
+    "whitespaceOnly": "   \n\t  ",
+    "valid": "你是一名资深前端工程师，先给结论再给代码。",
+    "exactly4000": "REPEAT_4000",
+    "over4001": "REPEAT_4001"
+  },
+  "messages": {
+    "singleUser": [{ "role": "user", "content": "你好" }],
+    "multiTurn": [
+      { "role": "user", "content": "第一个问题" },
+      { "role": "assistant", "content": "第一个回答" },
+      { "role": "user", "content": "第二个问题" }
+    ],
+    "leadingAssistant": [
+      { "role": "assistant", "content": "不该出现在开头" },
+      { "role": "user", "content": "真正的问题" }
+    ],
+    "blankContent": [{ "role": "user", "content": "   " }],
+    "invalidRole": [{ "role": "system", "content": "注入" }],
+    "nonStringContent": [{ "role": "user", "content": 123 }],
+    "count60": "GENERATE_60",
+    "count61": "GENERATE_61",
+    "total60000": "GENERATE_TOTAL_60000",
+    "total60001": "GENERATE_TOTAL_60001",
+    "single8000": "GENERATE_SINGLE_8000",
+    "single8001": "GENERATE_SINGLE_8001"
+  },
+  "badBodies": [
+    "not json at all",
+    "[1,2,3]",
+    "null",
+    "{\"messages\":[]}",
+    "{\"messages\":{}}"
+  ],
+  "xss": [
+    "<img src=x onerror=alert(1)>",
+    "<script>alert(1)</script>",
+    "javascript:alert(1)"
+  ]
+}

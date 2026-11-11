@@ -1,5 +1,52 @@
-# NEON//CHAT 技术文档
+# CYBER//LAB 技术文档
 
+> 面向项目维护者。当前实现说明更新于 2026-11-11；下方“历史 NEON//CHAT 资料”保留当时的记录，不代表本次代码的测试、登录或部署状态。
+>
+> 本文件位于项目根目录，可能随静态资源公开。不要写入 API Key、Cookie、鉴权参数或真实用户对话。
+
+## 当前实现
+
+### 结构与运行
+
+- `index.html`、`style.css`、`styles/lab.css` 和 `app.js` 组成无框架工作台；浏览器以原生 ES modules 加载 `scripts/`，不依赖外部字体、CDN 或前端运行时 npm 包。
+- `scripts/core/state.js` 负责对话状态、兼容旧数据、历史裁剪及请求体；`chat-protocol.js` 处理 SSE；`lab-data.js` 负责实验注释、搜索和备份；`telemetry.js` 记录真实计时；`import-transaction.js` 负责导入事务恢复。
+- `scripts/ui/` 包含 DOM、Markdown 和焦点/弹窗辅助逻辑。用户内容通过文本节点写入；代码块提供复制和换行切换，不执行原始 HTML。
+- `cloud-functions/api/chat.js` 是同源 `/api/chat` 入口。它先尝试 `/chat` Agent，在回环失败或 Agent 尚未调用模型且缺少网关配置时降级为直接调用 AI Gateway；不会在用户取消后重新发起降级请求。
+- `agents/_chat.ts`、`agents/_shared.ts` 和 `agents/chat/index.ts` 负责 Agent 校验、网关 SSE 转换、取消和清理。两条路径读取 `context.env`，不读取 `process.env`。
+
+### 本地数据与备份
+
+| 键 | 用途 |
+| --- | --- |
+| `cyberchat.v1` | 项目、实验、协议和消息；旧消息加载时补充可选 ID。 |
+| `cyberlab.annotations.v1` | 按实验 ID 保存笔记、标签和按助手消息 ID 关联的运行记录。 |
+| `cyberlab.ui.v1` | 独立界面偏好，目前保存代码块自动换行设置。 |
+| `cyberlab.import.transaction.v1` | 仅在合并导入期间保存事务前后快照；下次启动可完成恢复或确认已提交的导入。 |
+
+旧有效正文不会因为历史裁剪上限被截断；请求发送时仍按 40 条、50000 字、单条 8000 字裁剪。损坏或不可读取的存储不会自动覆盖原文，页面显示持久警告。新建和导入容量上限为 50 个项目、每项目 100 个实验、每实验 200 条消息；超出上限的旧数据保留并可完整导出，但备份不能直接导入，导出前会显示原因。检测到其他标签页已更新时，陈旧页面会停止写入并提示先备份再刷新；两个标签页同时写入时 localStorage 仍无法提供原子冲突合并保证。
+
+笔记最多 12000 字符；标签最多 6 个、每个 trim 后最多 20 字符并去重。JSON 备份格式为 `{format: 'cyberlab.backup', version: 1, exportedAt, chat, annotations}`，不包含界面偏好；导入上限 5 MiB。预检拒绝非法结构、引用、重复 ID、超额数据和不安全字段。导入重建项目、实验及消息 ID，保持当前选中项目；写入失败时尝试回滚，无法立即回滚时保留事务记录并阻止继续写入。备份包含用户对话和协议，应由用户自行保管。
+
+### 聊天接口
+
+`POST /api/chat` 接收 1–60 条 `user` / `assistant` 消息，单条截取至 8000 字符、截取后累计最多 60000 字符。可选 `systemPrompt` 按 trim 后计算，最多 4000 字符；4001 字符返回 HTTP 400，且不调用上游。前端只在启用且非空时发送该字段。
+
+流式契约不变：`data: {"delta":"..."}`、`data: {"error":"..."}` 和 `data: [DONE]`；空 delta 是心跳。解析器支持跨网络块、UTF-8 拆分、CRLF 和多行 data。上游空闲上限为 45 秒、硬上限为 100 秒，心跳间隔 5 秒；前端还有 120 秒无数据兜底。
+
+响应可提供 `X-Request-Id`、`X-AI-Route`（`agent` / `gateway`）及 `X-AI-Model`，并通过 `Access-Control-Expose-Headers` 暴露。模型字段表示本次请求写入网关的模型 ID，而不是模型内部版本证明；无法安全确认时不返回。HTTP 校验错误带请求 ID，不虚构路径或模型。“首 token”计时实际取自首个非空 delta，不能用于推断 token 数或成本；无助手正文的失败/中止只在当前页面显示，不产生可持久化的助手运行记录。
+
+### 测试和发布边界
+
+`npm run check` 执行语法、TypeScript、单元/契约及补丁空白检查；`npm run test:e2e` 使用 Playwright 和 mock 网关。`npm run build` 仅输出提示，不代表打包或功能验证。测试命令和本地启动方式见 [README](README.md)。
+
+2026-11-11 的本地 EdgeOne 预览中，首页可访问，空消息和 4001 字协议返回 HTTP 400；未拉取网关凭据时有效请求返回 HTTP 502，因此真实模型聊天未验证。该预览已停止，未据此声明 preview 或生产部署通过。本地预览曾可读取根目录下的 `.edgeone` 和 `node_modules` 路径，不应暴露给不可信网络。`edgeone.json` 的输出目录仍为项目根目录；文档及测试可能随部署公开，发布前须核查实际打包清单，不能以 `.gitignore` 推断部署排除。
+
+---
+
+## 历史 NEON//CHAT 资料（截至 2026-11-10）
+
+> 以下内容保留原有历史记录。其架构、版本、账号、测试、登录和部署描述均不作为当前状态证明。
+>
 > 面向接手开发的工程师 / Codex。最后更新：2026-11-10。
 >
 > ⚠️ **本文件位于项目根目录，会随静态资源一起部署并可被公网读取**。因此文档刻意不包含任何 API Key、鉴权 Token、账号 ID 或带 `eo_token` 的完整访问链接。请勿往此文件里写入凭据。

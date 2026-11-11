@@ -5,6 +5,19 @@
   "type": "module",
   "description": "AI 聊天助手 — EdgeOne Makers Agent 后端（平台 AI Gateway，零第三方依赖）",
   "scripts": {
-    "build": "node -e \"console.log('[ai-chat-assistant] 纯静态前端，无需构建')\""
+    "build": "node -e \"console.log('[ai-chat-assistant] 纯静态前端，无需构建；请运行 npm run check')\"",
+    "check": "node --check app.js && tsc --noEmit && npm test && git diff --check",
+    "test": "npm run test:unit && npm run test:contract",
+    "test:unit": "tsx --test tests/unit/*.test.ts",
+    "test:contract": "tsx --test tests/contract/*.test.ts",
+    "test:native": "node --import ./tests/support/register.mjs --experimental-strip-types --test tests/unit/*.test.ts tests/contract/*.test.ts",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.65.0",
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }

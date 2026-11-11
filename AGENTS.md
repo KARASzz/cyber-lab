@@ -2,23 +2,25 @@
 
 ## 项目结构与职责
 
-- `index.html`、`style.css`、`app.js` 是无框架的前端页面、样式和交互逻辑。
+- `index.html`、`style.css`、`styles/lab.css` 和 `app.js` 是无框架的工作台页面、样式及交互入口；`scripts/core/` 与 `scripts/ui/` 提供数据、流协议、遥测和界面模块。
 - `cloud-functions/api/chat.js` 提供 `POST /api/chat`，负责校验、流式响应及网关降级；`agents/chat/index.ts` 和 `agents/_*.ts` 实现 Agent 路由、模型配置及 SSE 辅助逻辑。
 - `edgeone.json` 配置 EdgeOne Makers；`.env.example` 声明网关环境变量。`edgeone-makers-experts/` 是随仓库保存的平台专家资料，不属于页面源码。
-- `TECHNICAL_DOC.md` 记录架构和接口约定。仓库目前没有测试目录或已入库的自动化测试。
+- `TECHNICAL_DOC.md` 记录架构和接口约定；`tests/unit/`、`tests/contract/` 和 `tests/e2e/` 分别覆盖纯函数、双路径契约与浏览器工作流。
 
 ## 构建与本地开发
 
 要求 Node.js 20+ 和 EdgeOne CLI。执行 CLI 命令前设置 `export PAGES_SOURCE=skills`。
 
-- `npm install`：安装并核对项目依赖；目前项目没有运行时依赖。
+- `npm ci`：安装锁定的开发依赖；前端没有运行时 npm 依赖。
+- `npm run check`：执行语法、TypeScript、单元/契约测试与补丁空白检查。
+- `npx playwright install chromium` 后执行 `npm run test:e2e`：运行桌面与移动浏览器回归，网关使用 mock。
 - `npm run build`：运行静态前端的占位构建脚本；它不执行测试或打包。
 - `edgeone makers dev --name ai-chat-assistant --skip-env-sync`：启动本地预览；按需打开 `http://127.0.0.1:8088/`。聊天功能还需要有效的网关配置。
 - `git diff --check`：检查补丁中的空白问题。部署和本地预览都会写入 `.edgeone/`，不要同时运行。
 
 ## 编码与测试
 
-遵循现有文件风格：JavaScript 和 TypeScript 使用两空格缩进、单引号、分号及 camelCase；沿用现有 HTML/CSS 的命名和格式。Agent 内部模块使用 `_` 前缀。当前没有配置格式化器、linter、测试框架或覆盖率门槛，不要声称 `npm run build` 已测试功能。
+遵循现有文件风格：JavaScript 和 TypeScript 使用两空格缩进、单引号、分号及 camelCase；沿用现有 HTML/CSS 的命名和格式。Agent 内部模块使用 `_` 前缀。当前未配置格式化器、linter 或覆盖率门槛；`npm run build` 不是功能测试。
 
 修改后按影响范围验证：在浏览器检查页面及交互；修改聊天接口时检查输入校验、SSE 流和错误处理。新增自动化测试时，优先使用 `*.test.js` 或 `*.test.ts`，并在引入测试工具的同时提供可运行命令。
 
