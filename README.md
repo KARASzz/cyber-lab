@@ -1,6 +1,6 @@
 # CYBER//LAB · 赛博实验室
 
-一个无前端框架的本地实验工作台。浏览器保存项目、实验、对话和笔记；聊天通过同源 `/api/chat` 调用 EdgeOne Makers Agent，回环不可用时由 Cloud Function 降级到 AI Gateway。
+一个无前端框架的 AI 与实验工作台，可部署在 EdgeOne Makers 和 Google Cloud Run。浏览器保存项目、实验、对话和笔记；Cloud Run 上的同源 `/api/chat` 直连 AI Gateway，EdgeOne Makers 保留原 Agent 与 Cloud Function 路径。
 
 ## 功能
 
@@ -31,9 +31,15 @@ edgeone makers dev --name ai-chat-assistant --skip-env-sync --skip-ai-gateway-sy
 npm run check                 # 语法、TypeScript、单元/接口测试和补丁空白检查
 npx playwright install chromium
 npm run test:e2e              # 桌面和移动浏览器；聊天网关使用 mock
-npm run build                 # 仅输出提示，不打包或测试功能
+npm run build                 # 将允许的静态资源构建到 dist/
 ```
 
 单项命令为 `npm run test:unit`、`npm run test:contract`。Node 22.18+ 还可使用 `npm run test:native` 运行不依赖 tsx 的单元和接口测试。自动化测试使用合成数据与 mock；测试通过不代表真实网关或线上部署已验证。
+
+## Cloud Run 运维
+
+macOS 上双击项目根目录的 `一键更新至CloudRun批处理工作台.command`，会启动仅监听本机的运维网页。工作台可以运行检查、构建，或按“检查 → 构建 → Git 提交与推送 → Cloud Run 部署”更新网站。发布前需要本机已安装 Node.js 22+、Git 和 Google Cloud CLI，并已登录有权限的 Google Cloud 账号。
+
+发布会推送 `main`，这也会触发 EdgeOne Makers 的生产自动部署。Cloud SQL 使用独立数据库 `cyber_lab`；当前网站数据仍只保存在浏览器 localStorage，不会写入 Cloud SQL，也不会跨设备同步。数据库、环境变量及权限说明见 [技术文档](TECHNICAL_DOC.md)。
 
 更多数据结构、接口及验证边界见 [技术文档](TECHNICAL_DOC.md)。

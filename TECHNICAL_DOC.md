@@ -1,6 +1,6 @@
 # CYBER//LAB 技术文档
 
-> 面向项目维护者。当前实现说明更新于 2026-11-11；下方“历史 NEON//CHAT 资料”保留当时的记录，不代表本次代码的测试、登录或部署状态。
+> 面向项目维护者。当前实现说明更新于 2026-11-20；下方“历史 NEON//CHAT 资料”保留当时的记录，不代表当前代码的测试、登录或部署状态。
 >
 > 本文件位于项目根目录，可能随静态资源公开。不要写入 API Key、Cookie、鉴权参数或真实用户对话。
 
@@ -27,6 +27,19 @@
 
 笔记最多 12000 字符；标签最多 6 个、每个 trim 后最多 20 字符并去重。JSON 备份格式为 `{format: 'cyberlab.backup', version: 1, exportedAt, chat, annotations}`，不包含界面偏好；导入上限 5 MiB。预检拒绝非法结构、引用、重复 ID、超额数据和不安全字段。导入重建项目、实验及消息 ID，保持当前选中项目；写入失败时尝试回滚，无法立即回滚时保留事务记录并阻止继续写入。备份包含用户对话和协议，应由用户自行保管。
 
+### Cloud Run 与 Cloud SQL
+
+- 服务运行在 Google Cloud 项目 `karas-513205` 的 `us-central1` 区域，Cloud Run 服务名为 `cyber-lab`。运行身份是 `cyber-lab-runtime@karas-513205.iam.gserviceaccount.com`，通过 Cloud SQL Node Connector 和 IAM 数据库认证连接。
+- 服务连接实例 `super-roach-db` 中新建的 `cyber_lab` 数据库；数据库身份为 `cyber-lab-runtime@karas-513205.iam`。该库撤销 `PUBLIC` 的连接、临时对象和 `public` schema 权限，只向运行身份授予应用所需权限。原有数据库未改动。
+- `GET /api/health` 查询当前数据库名并返回数据库状态；Cloud Run 启动时也会验证连接和数据库名。该健康接口在公网实测返回 HTTP 200，且报告数据库 `ok`。
+- Cloud Run 使用 `AI_GATEWAY_PREFER_AGENT_PROXY=false`，由 `/api/chat` 直连 AI Gateway。`AI_GATEWAY_API_KEY` 从 Secret Manager secret `cyber-lab-ai-gateway-key` 注入；`AI_GATEWAY_BASE_URL` 和 `AI_GATEWAY_MODEL` 作为 Cloud Run 环境变量。不要把密钥写入仓库、镜像、文档或运维台日志。
+- 服务目前公开访问，资源设置为 1 vCPU、512 MiB、每实例最多 10 并发、最多 3 个实例。`POST /api/chat` 实施进程内每分钟 20 次限制，该限制按实例单独计数，不是全局配额。
+- Cloud SQL 当前用于 Cloud Run 连接和数据库健康检查。项目、会话、对话、实验笔记及界面偏好仍保存在浏览器 localStorage；应用尚未把这些用户数据写入 Cloud SQL，也没有账号或跨设备同步。
+- `scripts/build-static.mjs` 只把允许的页面、样式和脚本复制到 `dist/`，并拒绝符号链接。EdgeOne 输出目录和 Cloud Run 镜像都使用该静态资源边界；`.gcloudignore` 排除文档、工作台启动器、本地配置和开发文件。
+- 后续更新可双击项目根目录的 `一键更新至CloudRun批处理工作台.command`。它启动只监听 `127.0.0.1` 的本机网页；发布操作依次运行项目检查、构建、提交中文 Git commit、推送 `main`、部署 Cloud Run，并核对数据库健康状态。工作台只暂存白名单文件，并拒绝 `.env*`、凭据文件、用户已有暂存内容和分叉的 Git 历史。推送 `main` 同时触发 EdgeOne 生产自动部署。
+- 截至 2026-11-20，`main` 提交 `c25a717` 已推送；EdgeOne 生产部署成功，Cloud Run revision `cyber-lab-00002-fwz` 承接全部流量。首页、静态资源、数据库健康检查和一次真实聊天 SSE 请求均已实测通过。
+- 项目 Codex 子智能体默认配置见 `.codex/config.toml`，目标模型为 `gpt-6-luna`，推理强度为 `max`；实际运行模型仍取决于当前 Codex 调度器是否支持该选项。
+
 ### 聊天接口
 
 `POST /api/chat` 接收 1–60 条 `user` / `assistant` 消息，单条截取至 8000 字符、截取后累计最多 60000 字符。可选 `systemPrompt` 按 trim 后计算，最多 4000 字符；4001 字符返回 HTTP 400，且不调用上游。前端只在启用且非空时发送该字段。
@@ -37,9 +50,9 @@
 
 ### 测试和发布边界
 
-`npm run check` 执行语法、TypeScript、单元/契约及补丁空白检查；`npm run test:e2e` 使用 Playwright 和 mock 网关。`npm run build` 仅输出提示，不代表打包或功能验证。测试命令和本地启动方式见 [README](README.md)。
+`npm run check` 执行语法、TypeScript、单元/契约及补丁空白检查；`npm run test:e2e` 使用 Playwright 和 mock 网关。`npm run build` 把静态白名单构建到 `dist/`，本身不执行测试。自动化测试使用合成数据与 mock；测试通过不代表真实网关或线上部署已验证。测试命令和本地启动方式见 [README](README.md)。
 
-2026-11-11 的本地 EdgeOne 预览中，首页可访问，空消息和 4001 字协议返回 HTTP 400；未拉取网关凭据时有效请求返回 HTTP 502，因此真实模型聊天未验证。该预览已停止，未据此声明 preview 或生产部署通过。本地预览曾可读取根目录下的 `.edgeone` 和 `node_modules` 路径，不应暴露给不可信网络。`edgeone.json` 的输出目录仍为项目根目录；文档及测试可能随部署公开，发布前须核查实际打包清单，不能以 `.gitignore` 推断部署排除。
+2026-11-11 的本地 EdgeOne 预览曾可读取根目录下的 `.edgeone` 和 `node_modules` 路径，不应暴露给不可信网络；当时由于未拉取网关凭据，真实模型聊天未验证。当前输出目录改为 `dist/`，不以 `.gitignore` 推断发布范围；打包规则见 `scripts/build-static.mjs`、`edgeone.json` 和 `.gcloudignore`。
 
 ---
 
