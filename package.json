@@ -3,12 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "AI 聊天助手 — EdgeOne Makers Agent 后端（平台 AI Gateway，零第三方依赖）",
+  "description": "CYBER//LAB — EdgeOne Makers 与 Google Cloud Run",
   "scripts": {
-    "build": "node -e \"console.log('[ai-chat-assistant] 纯静态前端，无需构建；请运行 npm run check')\"",
-    "check": "node --check app.js && tsc --noEmit && npm test && git diff --check",
+    "build": "node scripts/build-static.mjs",
+    "start": "node cloudrun/server.mjs",
+    "check": "node --check app.js && node --check cloudrun/server.mjs && node --check scripts/build-static.mjs && tsc --noEmit && npm test && git diff --check",
     "test": "npm run test:unit && npm run test:contract",
-    "test:unit": "tsx --test tests/unit/*.test.ts",
+    "test:unit": "tsx --test tests/unit/*.test.ts tests/unit/*.test.js",
     "test:contract": "tsx --test tests/contract/*.test.ts",
     "test:native": "node --import ./tests/support/register.mjs --experimental-strip-types --test tests/unit/*.test.ts tests/contract/*.test.ts",
     "test:e2e": "playwright test"
@@ -19,5 +20,12 @@
     "@types/node": "^26.6.6",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@google-cloud/cloud-sql-connector": "^1.13.0",
+    "pg": "^8.23.1"
   }
 }

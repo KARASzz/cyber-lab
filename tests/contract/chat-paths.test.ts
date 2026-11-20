@@ -115,6 +115,22 @@ for (const status of [401, 404, 500]) {
   });
 }
 
+test('运行时配置可让 Cloud Run 直接走 AI Gateway', async (t) => {
+  const urls: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: string | URL | Request) => {
+    urls.push(String(url));
+    return new Response(gatewayBody, { headers: sseHeaders });
+  });
+  const response = await onRequestPost({
+    request: new Request('https://cyber-lab.example/api/chat', {
+      method: 'POST', body: JSON.stringify({ messages: fixture.messages.singleUser }),
+    }),
+    env: { ...env, AI_GATEWAY_PREFER_AGENT_PROXY: 'false' },
+  });
+  assert.equal(response.status, 200);
+  assert.deepEqual(urls, ['https://gateway.invalid/v1/chat/completions']);
+});
+
 test('2xx 非 SSE 回环响应也会降级', async (t) => {
   let count = 0;
   t.mock.method(globalThis, 'fetch', async () => {

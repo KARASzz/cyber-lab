@@ -227,6 +227,9 @@ __marimo__/
 .env.*
 !.env.example
 
+# 静态构建产物
+/dist/
+
 # 前端开发依赖和浏览器测试产物
 /node_modules/
 /test-results/

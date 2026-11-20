@@ -62,7 +62,7 @@ const LOOPBACK_TIMEOUT_MS = 12_000;
  * 若线上确认回环一直不可用（例如被 eo_token / WAF 拦截），把它改成 false，
  * /api/chat 就会始终直连 AI Gateway —— 输出协议完全一致，无需改动其它代码。
  */
-const PREFER_AGENT_PROXY = true;
+const DEFAULT_PREFER_AGENT_PROXY = true;
 
 const CONVERSATION_COOKIE = 'eo_conversation_id';
 
@@ -535,7 +535,7 @@ export async function onRequestPost(context) {
   const cookieId = readConversationCookie(request);
   const conversationId = headerId || cookieId || newConversationId();
   const setCookie = (!headerId && !cookieId)
-    ? `${CONVERSATION_COOKIE}=${encodeURIComponent(conversationId)}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly`
+    ? `${CONVERSATION_COOKIE}=${encodeURIComponent(conversationId)}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly; Secure`
     : null;
 
   let rawText = '{}';
@@ -558,7 +558,11 @@ export async function onRequestPost(context) {
   let proxyController = null;
   let onClientAbort = null;
   let loopbackTimedOut = false;
-  const origin = PREFER_AGENT_PROXY ? resolveOrigin(request) : '';
+  const proxyPreference = String(env.AI_GATEWAY_PREFER_AGENT_PROXY ?? '').trim().toLowerCase();
+  const preferAgentProxy = proxyPreference === 'false'
+    ? false
+    : DEFAULT_PREFER_AGENT_PROXY;
+  const origin = preferAgentProxy ? resolveOrigin(request) : '';
   if (origin) {
     const ctrl = new AbortController();
     proxyController = ctrl;
