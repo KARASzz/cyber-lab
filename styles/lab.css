@@ -85,3 +85,42 @@
   .lab-notes, #lab-tag-input, #lab-command-input { font-size: 16px; }
   .lab-actions button, .lab-tag-input-row button { min-height: 44px; }
 }
+
+.lab-wiki-box { margin-top: 10px; }
+.lab-wiki-btn {
+  width: 100%;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 8px 12px;
+  background: #142820;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.lab-wiki-btn:hover { background: #1c3d30; border-color: #68f5c2; }
+.lab-wiki-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.lab-wiki-status { margin-top: 6px; font-size: 12px; color: var(--accent); word-break: break-all; }
+.lab-wiki-fields { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.lab-wiki-fields label { font-size: 13px; color: var(--text); }
+.lab-wiki-fields input, .lab-wiki-fields select {
+  width: 100%;
+  padding: 8px 10px;
+  background: #11171c;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 14px;
+}
+.lab-wiki-fields input:focus, .lab-wiki-fields select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.lab-wiki-feedback { margin-top: 8px; font-size: 12px; color: var(--accent); }
+.lab-wiki-feedback.is-error { color: var(--warning); }

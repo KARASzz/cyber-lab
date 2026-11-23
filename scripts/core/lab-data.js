@@ -38,7 +38,7 @@ export function normalizeTags(value) {
 }
 
 const RESERVED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
-const ANNOTATION_FIELDS = ['notes', 'tags', 'runs', 'updatedAt'];
+const ANNOTATION_FIELDS = ['notes', 'tags', 'runs', 'updatedAt', 'wikiPath', 'wikiSyncedAt'];
 const RUN_FIELDS = [
   'outcome', 'timeToHeadersMs', 'timeToFirstTokenMs', 'durationMs',
   'characters', 'historyMessages', 'systemPromptCharacters', 'model', 'route', 'requestId',
@@ -144,6 +144,18 @@ function normalizeAnnotation(raw, path, strictTags = false) {
     }
     result.updatedAt = raw.updatedAt;
   }
+  if (Object.hasOwn(raw, 'wikiPath')) {
+    if (raw.wikiPath !== null && typeof raw.wikiPath !== 'string') {
+      throw new LabDataError('wikiPath 必须是字符串或 null', `${path}.wikiPath`);
+    }
+    result.wikiPath = raw.wikiPath;
+  }
+  if (Object.hasOwn(raw, 'wikiSyncedAt')) {
+    if (raw.wikiSyncedAt !== null && typeof raw.wikiSyncedAt !== 'string') {
+      throw new LabDataError('wikiSyncedAt 必须是字符串或 null', `${path}.wikiSyncedAt`);
+    }
+    result.wikiSyncedAt = raw.wikiSyncedAt;
+  }
   return result;
 }
 
@@ -245,7 +257,7 @@ export function getSessionAnnotation(annotations, sessionId) {
 
 export function updateSessionAnnotation(annotations, sessionId, patch) {
   assertId(sessionId, 'sessionId');
-  assertRecord(patch, 'patch', ['notes', 'tags', 'runs']);
+  assertRecord(patch, 'patch', ['notes', 'tags', 'runs', 'wikiPath', 'wikiSyncedAt']);
   const normalized = canonicalAnnotations(annotations);
   const previous = Object.hasOwn(normalized.sessions, sessionId)
     ? normalized.sessions[sessionId] : { notes: '', tags: [], runs: {} };
@@ -577,4 +589,44 @@ export function safeFileName(title) {
   name = name.replace(/^\.+|\.+$/g, '').slice(0, 48);
   if (/[\uD800-\uDBFF]$/.test(name)) name = name.slice(0, -1);
   return name || '实验';
+}
+
+export async function fetchCloudWorkspace() {
+  try {
+    const response = await fetch('/api/lab/workspace');
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data.status === 'ok' && data.workspace) {
+      return { workspace: data.workspace, annotations: data.annotations };
+    }
+  } catch (_) {
+    // 忽略网络离线或无后端环境错误
+  }
+  return null;
+}
+
+export async function syncToCloud(workspace, annotations) {
+  const response = await fetch('/api/lab/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workspace, annotations }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${response.status}`);
+  }
+  return await response.json();
+}
+
+export async function promoteSessionToWiki({ sessionId, title, category, tags }) {
+  const response = await fetch('/api/lab/promote-to-wiki', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId, title, category, tags }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || `HTTP ${response.status}`);
+  }
+  return data;
 }

@@ -10,9 +10,10 @@ import { ICONS, createEl, iconNode, pad2, formatTime } from './scripts/ui/dom.js
 import { copyText, renderMarkdown } from './scripts/ui/markdown.js';
 import { closeDialog, focusSafely, openDialog, trapFocus } from './scripts/ui/dialogs.js';
 import {
-  buildMergedImport, createAnnotationStorage, createUiStorage, createWorkspaceBackup, getSessionAnnotation,
-  inspectWorkspaceBackup, LAB_STORAGE_KEY, MAX_BACKUP_BYTES, normalizeAnnotations, normalizeTags, safeFileName, searchWorkspace,
-  serializeSessionMarkdown, updateSessionAnnotation,
+  buildMergedImport, createAnnotationStorage, createUiStorage, createWorkspaceBackup, fetchCloudWorkspace,
+  getSessionAnnotation, inspectWorkspaceBackup, LAB_STORAGE_KEY, MAX_BACKUP_BYTES, normalizeAnnotations,
+  normalizeTags, promoteSessionToWiki, safeFileName, searchWorkspace, serializeSessionMarkdown,
+  syncToCloud, updateSessionAnnotation,
 } from './scripts/core/lab-data.js';
 import { commitImportTransaction, recoverImportTransaction } from './scripts/core/import-transaction.js';
 import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scripts/core/telemetry.js';
@@ -53,6 +54,14 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
     tagAdd: $('lab-tag-add'),
     notes: $('lab-notes'),
     noteStatus: $('lab-note-status'),
+    wikiBtn: $('lab-promote-wiki-btn'),
+    wikiStatus: $('lab-wiki-status'),
+    wikiDialog: $('lab-wiki-dialog'),
+    wikiInputTitle: $('lab-wiki-input-title'),
+    wikiSelectCat: $('lab-wiki-select-cat'),
+    wikiFeedback: $('lab-wiki-feedback'),
+    wikiCancel: $('lab-wiki-cancel'),
+    wikiConfirm: $('lab-wiki-confirm'),
     commandBtn: $('lab-command-btn'),
     sidebarSearch: $('lab-sidebar-search'),
     commandDialog: $('lab-command-dialog'),
@@ -239,6 +248,16 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
     return true;
   }
 
+  let cloudSyncTimer = null;
+  function triggerCloudSync() {
+    clearTimeout(cloudSyncTimer);
+    cloudSyncTimer = setTimeout(async function () {
+      try {
+        await syncToCloud(data, annotations);
+      } catch (_) {}
+    }, 2000);
+  }
+
   function saveAnnotations() {
     let ok = annotationWritable && canWriteSnapshot();
     if (ok) {
@@ -248,7 +267,10 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
         const snapshot = readStorageSnapshot();
         if (!snapshot) { transactionBlocked = true; ok = false; }
         else if (snapshot.chat !== expectedChat || snapshot.annotations !== expected) { storageConflict = true; ok = false; }
-        else expectedAnnotations = snapshot.annotations;
+        else {
+          expectedAnnotations = snapshot.annotations;
+          triggerCloudSync();
+        }
       }
     }
     rt.annotationOk = ok;
@@ -344,7 +366,10 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
         const snapshot = readStorageSnapshot();
         if (!snapshot) { transactionBlocked = true; ok = false; }
         else if (snapshot.chat !== expected || snapshot.annotations !== expectedAnnotations) { storageConflict = true; ok = false; }
-        else expectedChat = snapshot.chat;
+        else {
+          expectedChat = snapshot.chat;
+          triggerCloudSync();
+        }
       }
     }
     if (ok !== rt.storageOk) { rt.storageOk = ok; setStorageStatus(ok); }
@@ -409,6 +434,15 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
     });
     els.tagsList.replaceChildren(fragment);
     if (!rt.annotationOk) els.noteStatus.textContent = '存储不可用，笔记仅本次有效';
+    if (els.wikiStatus) {
+      if (annotation.wikiPath) {
+        els.wikiStatus.textContent = '已沉淀至 Wiki: [[' + annotation.wikiPath + ']]';
+        els.wikiStatus.hidden = false;
+      } else {
+        els.wikiStatus.textContent = '';
+        els.wikiStatus.hidden = true;
+      }
+    }
   }
 
   function addTag() {
@@ -1942,6 +1976,69 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
     copyText(JSON.stringify(toDiagnostic(run), null, 2), els.copyDiagnostic);
   });
 
+  function openWikiDialog() {
+    const session = currentSession();
+    if (!session) return;
+    flushPendingNotes();
+    els.wikiInputTitle.value = session.title || '';
+    els.wikiFeedback.textContent = '';
+    els.wikiFeedback.hidden = true;
+    els.wikiConfirm.disabled = false;
+    openDialog(els.wikiDialog, els.wikiInputTitle);
+  }
+
+  function closeWikiDialog() {
+    closeDialog(els.wikiDialog, els.wikiBtn);
+  }
+
+  async function confirmPromoteToWiki() {
+    const session = currentSession();
+    if (!session) return;
+    const title = els.wikiInputTitle.value.trim();
+    if (!title) {
+      els.wikiFeedback.textContent = '请输入有效的标题';
+      els.wikiFeedback.classList.add('is-error');
+      els.wikiFeedback.hidden = false;
+      return;
+    }
+    const category = els.wikiSelectCat.value;
+    const ann = getSessionAnnotation(annotations, session.id);
+    els.wikiConfirm.disabled = true;
+    els.wikiFeedback.textContent = '正在沉淀至 Cloud SQL Wiki 数据库…';
+    els.wikiFeedback.classList.remove('is-error');
+    els.wikiFeedback.hidden = false;
+
+    try {
+      const res = await promoteSessionToWiki({
+        sessionId: session.id,
+        title,
+        category,
+        tags: ann.tags,
+      });
+      annotations = updateSessionAnnotation(annotations, session.id, {
+        wikiPath: res.wikiPath,
+      });
+      saveAnnotations();
+      renderAnnotations(true);
+      closeWikiDialog();
+      els.announcement.textContent = `实验已沉淀至 Wiki: ${res.wikiPath}`;
+    } catch (error) {
+      els.wikiFeedback.textContent = error.message || '沉淀失败';
+      els.wikiFeedback.classList.add('is-error');
+      els.wikiConfirm.disabled = false;
+    }
+  }
+
+  if (els.wikiBtn) {
+    els.wikiBtn.addEventListener('click', openWikiDialog);
+    els.wikiCancel.addEventListener('click', closeWikiDialog);
+    els.wikiConfirm.addEventListener('click', confirmPromoteToWiki);
+    els.wikiDialog.addEventListener('cancel', function (e) {
+      e.preventDefault();
+      closeWikiDialog();
+    });
+  }
+
   els.menuBtn.addEventListener('click', toggleSidebar);
   els.sidebarClose.addEventListener('click', closeSidebar);
   els.sidebarOverlay.addEventListener('click', closeSidebar);
@@ -2039,6 +2136,27 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
     save();
   });
 
+  async function initCloudWorkspace() {
+    try {
+      const cloud = await fetchCloudWorkspace();
+      if (!cloud || !cloud.workspace || !Array.isArray(cloud.workspace.projects) || cloud.workspace.projects.length === 0) return;
+      const isLocalEmpty = data.projects.length === 1 &&
+        data.projects[0].name === '默认项目' &&
+        data.projects[0].sessions.length === 1 &&
+        data.projects[0].sessions[0].messages.length === 0;
+
+      if (isLocalEmpty) {
+        data = cloud.workspace;
+        storage.save(data);
+        if (cloud.annotations) {
+          annotations = cloud.annotations;
+          annotationStorage.save(annotations);
+        }
+        renderAll();
+      }
+    } catch (_) {}
+  }
+
   /* ---------------- 初始化 ---------------- */
   setStorageStatus(loadResult.ok);
   if (loadResult.fresh) save();
@@ -2047,6 +2165,7 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
   setRunState('idle');
   updateNetworkStatus();
   renderAll();
+  initCloudWorkspace();
   autoResize();
   updateCharCount();
   updateSendButton();

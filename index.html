@@ -138,6 +138,13 @@
             <div class="lab-tag-input-row"><label class="lab-live" for="lab-tag-input">添加标签</label><input id="lab-tag-input" type="text" maxlength="20" placeholder="添加标签" /><button id="lab-tag-add" type="button">添加</button></div>
             <label for="lab-notes">实验笔记</label><textarea id="lab-notes" class="lab-notes" maxlength="12000" rows="5" placeholder="记录结论、后续问题或验证结果…"></textarea>
             <div id="lab-note-status" class="lab-note-status">笔记保存在本地</div>
+            <div class="lab-wiki-box">
+              <button id="lab-promote-wiki-btn" class="lab-wiki-btn" type="button">
+                <svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 4h12v12H4z"/><path d="M7 8h6M7 12h4"/></svg>
+                <span>沉淀为 Wiki 知识卡片</span>
+              </button>
+              <p id="lab-wiki-status" class="lab-wiki-status" hidden></p>
+            </div>
           </section>
           <section class="lab-section" aria-labelledby="lab-data-title">
             <h3 id="lab-data-title">数据与诊断</h3>
@@ -174,6 +181,27 @@
     <label for="lab-import-file">选择 JSON 备份文件</label><input id="lab-import-file" type="file" accept="application/json,.json" />
     <p id="lab-import-summary">尚未选择文件。</p>
     <div class="lab-dialog-actions"><button id="lab-import-cancel" class="btn-ghost" type="button">取消</button><button id="lab-import-confirm" class="btn-primary" type="button" disabled>确认导入</button></div>
+  </dialog>
+  <dialog id="lab-wiki-dialog" class="lab-import-dialog" aria-labelledby="lab-wiki-title" hidden>
+    <h2 id="lab-wiki-title">沉淀至私人知识库 (Wiki)</h2>
+    <p>将当前实验的结论与核心问答自动格式化为标准 Wiki Markdown 页面并存入 Cloud SQL。</p>
+    <div class="lab-wiki-fields">
+      <label for="lab-wiki-input-title">Wiki 页面标题</label>
+      <input id="lab-wiki-input-title" type="text" maxlength="80" placeholder="例如：大模型测试时计算与推理预算实验" />
+      <label for="lab-wiki-select-cat">知识分类</label>
+      <select id="lab-wiki-select-cat">
+        <option value="学习笔记">学习笔记 (Notes)</option>
+        <option value="大模型二三事">大模型二三事</option>
+        <option value="开源项目">开源项目</option>
+        <option value="AI你我他">AI你我他</option>
+        <option value="实验记录" selected>实验记录</option>
+      </select>
+    </div>
+    <p id="lab-wiki-feedback" class="lab-wiki-feedback" hidden></p>
+    <div class="lab-dialog-actions">
+      <button id="lab-wiki-cancel" class="btn-ghost" type="button">取消</button>
+      <button id="lab-wiki-confirm" class="btn-primary" type="button">确认沉淀入库</button>
+    </div>
   </dialog>
   <script type="module" src="./app.js"></script>
 </body>
