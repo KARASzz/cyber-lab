@@ -642,7 +642,7 @@ export async function startServer(environment = process.env) {
     await ensureTables(pool);
   }
   const server = createHttpServer({ environment, databasePool: pool });
-  const port = Number(environment.PORT || 8080);
+  const port = Number(environment.PORT || 8088);
   server.requestTimeout = 130_000;
   server.headersTimeout = 65_000;
 

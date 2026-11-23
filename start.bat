@@ -17,7 +17,7 @@ if %errorlevel% neq 0 (
 echo [*] 正在检查并同步构建最新静态资源...
 call npm run build
 
-set PORT=8080
+set PORT=8088
 set URL=http://127.0.0.1:%PORT%
 
 echo [*] 正在准备打开默认浏览器: %URL%

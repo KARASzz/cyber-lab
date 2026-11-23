@@ -19,7 +19,7 @@ fi
 echo "📦 正在检查并同步构建最新静态资源..."
 npm run build
 
-PORT="${PORT:-8080}"
+PORT="${PORT:-8088}"
 URL="http://127.0.0.1:${PORT}"
 
 echo "🚀 正在启动 CYBER//LAB 本地服务 (端口: ${PORT})..."

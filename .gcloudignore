@@ -18,4 +18,6 @@ AGENTS.md
 README.md
 TECHNICAL_DOC.md
 *.command
+*.bat
+*.sh
 cloud_run_ops_workbench.py
