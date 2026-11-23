@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import http from 'node:http';
@@ -172,6 +173,48 @@ function createChatRequest(request, body, signal) {
   });
 }
 
+export function formatWikiContent({ title, sessionId, category = '实验记录', tags = [], notes = '', messages = [], runs = {} }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const cleanTags = Array.isArray(tags) ? tags.map((t) => String(t).trim()).filter(Boolean) : [];
+  if (!cleanTags.includes('实验记录')) cleanTags.push('实验记录');
+
+  const frontmatter = [
+    '---',
+    `title: ${title}`,
+    `created: ${today}`,
+    `updated: ${today}`,
+    'type: note',
+    `tags: [${cleanTags.map((t) => JSON.stringify(t)).join(', ')}]`,
+    `sources: [cyber-lab/session-${sessionId}]`,
+    'confidence: high',
+    'contested: false',
+    'contradictions: []',
+    '---',
+  ].join('\n');
+
+  let body = `\n\n# ${title}\n\n## 实验结论与洞察\n${notes.trim() || '（无额外笔记）'}\n\n## 实验对话记录\n`;
+  if (Array.isArray(messages) && messages.length > 0) {
+    for (const msg of messages) {
+      const roleName = msg.role === 'assistant' ? '🤖 实验助手' : '👤 实验员';
+      body += `\n### ${roleName}\n${String(msg.content || '').trim()}\n`;
+    }
+  } else {
+    body += '\n（无对话内容）\n';
+  }
+
+  const runKeys = Object.keys(runs || {});
+  if (runKeys.length > 0) {
+    body += '\n## 运行遥测数据\n';
+    const latestRun = runs[runKeys[runKeys.length - 1]] || {};
+    if (latestRun.model) body += `- **模型**：\`${latestRun.model}\`\n`;
+    if (latestRun.timeToFirstTokenMs) body += `- **首 Token 延迟**：${latestRun.timeToFirstTokenMs} ms\n`;
+    if (latestRun.durationMs) body += `- **总耗时**：${latestRun.durationMs} ms\n`;
+    if (latestRun.characters) body += `- **结果字符数**：${latestRun.characters}\n`;
+  }
+
+  return frontmatter + body;
+}
+
 export function createHttpServer({
   environment = process.env,
   databasePool = null,
@@ -204,6 +247,265 @@ export function createHttpServer({
         });
       } catch {
         sendJson(response, 503, { status: 'error', database: 'unavailable' });
+      }
+      return;
+    }
+
+    if (pathname === '/api/lab/workspace' && request.method === 'GET') {
+      if (!databasePool) {
+        sendJson(response, 200, { status: 'ok', workspace: null, annotations: null, configured: false });
+        return;
+      }
+      try {
+        const [projectsRes, sessionsRes, annotationsRes] = await Promise.all([
+          databasePool.query('SELECT id, name, system_prompt, active_session_id, created_at, updated_at FROM lab_projects ORDER BY created_at ASC'),
+          databasePool.query('SELECT id, project_id, title, messages, created_at, updated_at FROM lab_sessions ORDER BY created_at ASC'),
+          databasePool.query('SELECT session_id, tags, notes, runs, wiki_path, wiki_synced_at, updated_at FROM lab_annotations'),
+        ]);
+
+        const sessionsByProject = new Map();
+        for (const s of sessionsRes.rows) {
+          if (!sessionsByProject.has(s.project_id)) sessionsByProject.set(s.project_id, []);
+          sessionsByProject.get(s.project_id).push({
+            id: s.id,
+            title: s.title,
+            createdAt: Number(s.created_at),
+            updatedAt: Number(s.updated_at),
+            messages: Array.isArray(s.messages) ? s.messages : [],
+          });
+        }
+
+        const projects = projectsRes.rows.map((p) => ({
+          id: p.id,
+          name: p.name,
+          systemPrompt: p.system_prompt || { enabled: false, text: '', presetId: null },
+          activeSessionId: p.active_session_id || '',
+          createdAt: Number(p.created_at),
+          updatedAt: Number(p.updated_at),
+          sessions: sessionsByProject.get(p.id) || [],
+        }));
+
+        const annotationsSessions = {};
+        for (const a of annotationsRes.rows) {
+          annotationsSessions[a.session_id] = {
+            tags: Array.isArray(a.tags) ? a.tags : [],
+            notes: a.notes || '',
+            runs: a.runs || {},
+            wikiPath: a.wiki_path || null,
+            wikiSyncedAt: a.wiki_synced_at ? new Date(a.wiki_synced_at).toISOString() : null,
+            updatedAt: Number(a.updated_at),
+          };
+        }
+
+        sendJson(response, 200, {
+          status: 'ok',
+          workspace: {
+            activeProjectId: projects[0]?.id || '',
+            projects,
+          },
+          annotations: {
+            version: 1,
+            sessions: annotationsSessions,
+          },
+        });
+      } catch (error) {
+        if (error.code === '42P01') {
+          sendJson(response, 200, { status: 'ok', workspace: null, annotations: null, uninitialized: true });
+          return;
+        }
+        sendJson(response, 500, { error: '无法读取工作区数据' });
+      }
+      return;
+    }
+
+    if (pathname === '/api/lab/sync' && request.method === 'POST') {
+      if (!databasePool) {
+        sendJson(response, 503, { error: '数据库未连接' });
+        return;
+      }
+      let body;
+      try {
+        body = JSON.parse(await readBody(request));
+      } catch {
+        sendJson(response, 400, { error: '无效的 JSON 请求体' });
+        return;
+      }
+
+      const client = await databasePool.connect();
+      try {
+        await client.query('BEGIN');
+        const projects = body?.workspace?.projects;
+        if (Array.isArray(projects)) {
+          for (const p of projects) {
+            if (!p || typeof p.id !== 'string') continue;
+            await client.query(
+              `INSERT INTO lab_projects (id, name, system_prompt, active_session_id, created_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               ON CONFLICT (id) DO UPDATE SET
+                 name = EXCLUDED.name,
+                 system_prompt = EXCLUDED.system_prompt,
+                 active_session_id = EXCLUDED.active_session_id,
+                 updated_at = EXCLUDED.updated_at;`,
+              [
+                p.id,
+                String(p.name || '').slice(0, 128),
+                JSON.stringify(p.systemPrompt || {}),
+                p.activeSessionId || null,
+                Number(p.createdAt) || Date.now(),
+                Number(p.updatedAt) || Date.now(),
+              ]
+            );
+            if (Array.isArray(p.sessions)) {
+              for (const s of p.sessions) {
+                if (!s || typeof s.id !== 'string') continue;
+                await client.query(
+                  `INSERT INTO lab_sessions (id, project_id, title, messages, created_at, updated_at)
+                   VALUES ($1, $2, $3, $4, $5, $6)
+                   ON CONFLICT (id) DO UPDATE SET
+                     title = EXCLUDED.title,
+                     messages = EXCLUDED.messages,
+                     updated_at = EXCLUDED.updated_at;`,
+                  [
+                    s.id,
+                    p.id,
+                    String(s.title || '').slice(0, 128),
+                    JSON.stringify(Array.isArray(s.messages) ? s.messages : []),
+                    Number(s.createdAt) || Date.now(),
+                    Number(s.updatedAt) || Date.now(),
+                  ]
+                );
+              }
+            }
+          }
+        }
+
+        const annotations = body?.annotations?.sessions;
+        if (annotations && typeof annotations === 'object') {
+          for (const [sessionId, ann] of Object.entries(annotations)) {
+            if (!ann || typeof ann !== 'object') continue;
+            await client.query(
+              `INSERT INTO lab_annotations (session_id, tags, notes, runs, wiki_path, wiki_synced_at, updated_at)
+               VALUES ($1, $2, $3, $4, $5, $6, $7)
+               ON CONFLICT (session_id) DO UPDATE SET
+                 tags = EXCLUDED.tags,
+                 notes = EXCLUDED.notes,
+                 runs = EXCLUDED.runs,
+                 updated_at = EXCLUDED.updated_at;`,
+              [
+                sessionId,
+                JSON.stringify(Array.isArray(ann.tags) ? ann.tags : []),
+                String(ann.notes || '').slice(0, 12000),
+                JSON.stringify(ann.runs || {}),
+                ann.wikiPath || null,
+                ann.wikiSyncedAt ? new Date(ann.wikiSyncedAt) : null,
+                Number(ann.updatedAt) || Date.now(),
+              ]
+            );
+          }
+        }
+        await client.query('COMMIT');
+        sendJson(response, 200, { status: 'ok', syncedAt: Date.now() });
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        if (error.code === '42P01') {
+          sendJson(response, 503, { error: '数据库表尚未初始化，请先执行 DDL' });
+          return;
+        }
+        sendJson(response, 500, { error: `同步失败：${error.message || '未知错误'}` });
+      } finally {
+        client.release();
+      }
+      return;
+    }
+
+    if (pathname === '/api/lab/promote-to-wiki' && request.method === 'POST') {
+      if (!databasePool) {
+        sendJson(response, 503, { error: '数据库未连接' });
+        return;
+      }
+      let body;
+      try {
+        body = JSON.parse(await readBody(request));
+      } catch {
+        sendJson(response, 400, { error: '无效的 JSON 请求体' });
+        return;
+      }
+
+      const { sessionId, title, category = '实验记录', tags = [] } = body || {};
+      if (!sessionId || typeof sessionId !== 'string') {
+        sendJson(response, 400, { error: '缺少有效的 sessionId' });
+        return;
+      }
+      if (!title || typeof title !== 'string') {
+        sendJson(response, 400, { error: '缺少有效的标题' });
+        return;
+      }
+
+      try {
+        const sessionRes = await databasePool.query(
+          'SELECT id, title, messages FROM lab_sessions WHERE id = $1',
+          [sessionId]
+        );
+        if (sessionRes.rows.length === 0) {
+          sendJson(response, 404, { error: '未找到该实验会话' });
+          return;
+        }
+        const session = sessionRes.rows[0];
+
+        const annRes = await databasePool.query(
+          'SELECT tags, notes, runs FROM lab_annotations WHERE session_id = $1',
+          [sessionId]
+        );
+        const ann = annRes.rows[0] || {};
+        const effectiveTags = Array.isArray(tags) && tags.length > 0 ? tags : (ann.tags || []);
+        const notes = ann.notes || '';
+        const content = formatWikiContent({
+          title,
+          sessionId,
+          category,
+          tags: effectiveTags,
+          notes,
+          messages: session.messages || [],
+          runs: ann.runs || {},
+        });
+        const sha256 = createHash('sha256').update(content, 'utf8').digest('hex');
+        const lineCount = content.split('\n').length;
+        const summary = notes.slice(0, 200).replace(/\n/g, ' ') || `${title} 实验记录`;
+        const cleanId = sessionId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32);
+        const wikiPath = `entities/experiment-${cleanId}.md`;
+
+        await databasePool.query(
+          `INSERT INTO wiki_pages (path, title, category, type, tags, summary, content, sha256, line_count, outbound_links, created_at, updated_at)
+           VALUES ($1, $2, $3, 'note', $4, $5, $6, $7, $8, '[]'::jsonb, NOW(), NOW())
+           ON CONFLICT (path) DO UPDATE SET
+             title = EXCLUDED.title,
+             category = EXCLUDED.category,
+             tags = EXCLUDED.tags,
+             summary = EXCLUDED.summary,
+             content = EXCLUDED.content,
+             sha256 = EXCLUDED.sha256,
+             line_count = EXCLUDED.line_count,
+             updated_at = NOW();`,
+          [wikiPath, title, category, JSON.stringify(effectiveTags), summary, content, sha256, lineCount]
+        );
+
+        await databasePool.query(
+          'UPDATE lab_annotations SET wiki_path = $1, wiki_synced_at = NOW() WHERE session_id = $2',
+          [wikiPath, sessionId]
+        );
+
+        sendJson(response, 200, {
+          status: 'ok',
+          wikiPath,
+          title,
+          category,
+        });
+      } catch (error) {
+        if (error.code === '42P01') {
+          sendJson(response, 503, { error: '数据库表尚未初始化，请先执行 DDL' });
+          return;
+        }
+        sendJson(response, 500, { error: `沉淀至 Wiki 失败：${error.message || '未知错误'}` });
       }
       return;
     }
