@@ -27,7 +27,7 @@ PROJECT_ID = 'karas-513205'
 REGION = 'us-central1'
 SERVICE = 'cyber-lab'
 INSTANCE = 'karas-513205:us-central1:super-roach-db'
-DATABASE = 'cyber_lab'
+DATABASE = 'postgres'
 DB_USER = 'cyber-lab-runtime@karas-513205.iam'
 RUNTIME_SERVICE_ACCOUNT = 'cyber-lab-runtime@karas-513205.iam.gserviceaccount.com'
 MAX_LOG_LINES = 180
@@ -51,6 +51,7 @@ ALLOWED_EXACT_PATHS = {
     'package-lock.json',
     'package.json',
     'scripts/build-static.mjs',
+    'scripts/cloudsql_schema.sql',
     'style.css',
     '一键更新至CloudRun批处理工作台.command',
     'tests/contract/chat-paths.test.ts',
