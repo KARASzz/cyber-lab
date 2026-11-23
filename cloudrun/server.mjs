@@ -594,8 +594,53 @@ async function createDatabasePool(environment) {
   return { pool, connector };
 }
 
+export async function ensureTables(pool) {
+  if (!pool) return;
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lab_projects (
+          id VARCHAR(64) PRIMARY KEY,
+          name VARCHAR(128) NOT NULL,
+          system_prompt JSONB DEFAULT '{"enabled": false, "text": "", "presetId": null}'::JSONB,
+          active_session_id VARCHAR(64),
+          created_at BIGINT NOT NULL,
+          updated_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lab_projects_updated_at ON lab_projects(updated_at DESC);
+
+      CREATE TABLE IF NOT EXISTS lab_sessions (
+          id VARCHAR(64) PRIMARY KEY,
+          project_id VARCHAR(64) NOT NULL REFERENCES lab_projects(id) ON DELETE CASCADE,
+          title VARCHAR(128) NOT NULL,
+          messages JSONB DEFAULT '[]'::JSONB,
+          created_at BIGINT NOT NULL,
+          updated_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lab_sessions_project ON lab_sessions(project_id);
+      CREATE INDEX IF NOT EXISTS idx_lab_sessions_updated_at ON lab_sessions(updated_at DESC);
+
+      CREATE TABLE IF NOT EXISTS lab_annotations (
+          session_id VARCHAR(64) PRIMARY KEY REFERENCES lab_sessions(id) ON DELETE CASCADE,
+          tags JSONB DEFAULT '[]'::JSONB,
+          notes TEXT DEFAULT '',
+          runs JSONB DEFAULT '{}'::JSONB,
+          wiki_path VARCHAR(256),
+          wiki_synced_at TIMESTAMP WITH TIME ZONE,
+          updated_at BIGINT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_lab_annotations_wiki ON lab_annotations(wiki_path);
+    `);
+    console.log('CYBER//LAB 数据表结构已确认就绪');
+  } catch (error) {
+    console.warn(`初始化数据表提示：${error.message}`);
+  }
+}
+
 export async function startServer(environment = process.env) {
   const { pool, connector } = await createDatabasePool(environment);
+  if (pool) {
+    await ensureTables(pool);
+  }
   const server = createHttpServer({ environment, databasePool: pool });
   const port = Number(environment.PORT || 8080);
   server.requestTimeout = 130_000;

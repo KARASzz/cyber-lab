@@ -30,11 +30,19 @@
 ### Cloud Run 与 Cloud SQL
 
 - 服务运行在 Google Cloud 项目 `karas-513205` 的 `us-central1` 区域，Cloud Run 服务名为 `cyber-lab`。运行身份是 `cyber-lab-runtime@karas-513205.iam.gserviceaccount.com`，通过 Cloud SQL Node Connector 和 IAM 数据库认证连接。
-- 服务连接实例 `super-roach-db` 中新建的 `cyber_lab` 数据库；数据库身份为 `cyber-lab-runtime@karas-513205.iam`。该库撤销 `PUBLIC` 的连接、临时对象和 `public` schema 权限，只向运行身份授予应用所需权限。原有数据库未改动。
-- `GET /api/health` 查询当前数据库名并返回数据库状态；Cloud Run 启动时也会验证连接和数据库名。该健康接口在公网实测返回 HTTP 200，且报告数据库 `ok`。
+- 服务连接实例 `super-roach-db` 中的 `postgres` 数据库（已包含私人知识库 `wiki_pages` 表）；数据库身份为 `cyber-lab-runtime@karas-513205.iam`。
+- 业务数据表架构：
+  - `lab_projects`：存储实验项目元数据及项目级系统协议。
+  - `lab_sessions`：存储实验会话、消息历史（JSONB）及时间戳。
+  - `lab_annotations`：存储实验标签、实验笔记、遥测数据及关联的 Wiki 页面路径（`wiki_path`）。
+  - 服务端具备启动自检能力，启动时自动确保 `lab_*` 表结构就绪。
+- REST 同步与 Wiki 沉淀接口：
+  - `GET /api/lab/workspace`：全量拉取当前云端工作区项目与会话，用于首次启动或跨端漫游。
+  - `POST /api/lab/sync`：前端变更后防抖自动提交，采用事务级 UPSERT 实现幂等持久化。
+  - `POST /api/lab/promote-to-wiki`：将指定实验提取格式化为符合私人知识库规范的 Markdown 页面，自动写入 `wiki_pages` 表并回写关联。
+- `GET /api/health` 查询当前数据库名并返回数据库状态；Cloud Run 启动时也会验证连接和数据库名。
 - Cloud Run 使用 `AI_GATEWAY_PREFER_AGENT_PROXY=false`，由 `/api/chat` 直连 AI Gateway。`AI_GATEWAY_API_KEY` 从 Secret Manager secret `cyber-lab-ai-gateway-key` 注入；`AI_GATEWAY_BASE_URL` 和 `AI_GATEWAY_MODEL` 作为 Cloud Run 环境变量。不要把密钥写入仓库、镜像、文档或运维台日志。
 - 服务目前公开访问，资源设置为 1 vCPU、512 MiB、每实例最多 10 并发、最多 3 个实例。`POST /api/chat` 实施进程内每分钟 20 次限制，该限制按实例单独计数，不是全局配额。
-- Cloud SQL 当前用于 Cloud Run 连接和数据库健康检查。项目、会话、对话、实验笔记及界面偏好仍保存在浏览器 localStorage；应用尚未把这些用户数据写入 Cloud SQL，也没有账号或跨设备同步。
 - `scripts/build-static.mjs` 只把允许的页面、样式和脚本复制到 `dist/`，并拒绝符号链接。EdgeOne 输出目录和 Cloud Run 镜像都使用该静态资源边界；`.gcloudignore` 排除文档、工作台启动器、本地配置和开发文件。
 - 后续更新可双击项目根目录的 `一键更新至CloudRun批处理工作台.command`。它启动只监听 `127.0.0.1` 的本机网页；发布操作依次运行项目检查、构建、提交中文 Git commit、推送 `main`、部署 Cloud Run，并核对数据库健康状态。工作台只暂存白名单文件，并拒绝 `.env*`、凭据文件、用户已有暂存内容和分叉的 Git 历史。推送 `main` 同时触发 EdgeOne 生产自动部署。
 - 截至 2026-11-20，`main` 提交 `c25a717` 已推送；EdgeOne 生产部署成功，Cloud Run revision `cyber-lab-00002-fwz` 承接全部流量。首页、静态资源、数据库健康检查和一次真实聊天 SSE 请求均已实测通过。
