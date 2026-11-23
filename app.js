@@ -122,6 +122,13 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
     modalInput: $('modal-input'),
     modalCancel: $('modal-cancel'),
     modalConfirm: $('modal-confirm'),
+    lockScreen: $('lab-lock-screen'),
+    cardFlipper: $('lab-card-flipper'),
+    clownBack: $('lab-clown-back'),
+    lockDots: $('lab-lock-dots'),
+    lockKeypad: document.querySelector('.lab-lock-keypad'),
+    lockBtn: $('lab-lock-btn'),
+    app: $('lab-app'),
   };
 
   function findProject(id) {
@@ -1183,6 +1190,11 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
   }
 
   function syncInert() {
+    if (!isAppUnlocked()) {
+      if (els.app) els.app.inert = true;
+      return;
+    }
+    if (els.app) els.app.inert = false;
     const sidebarOpen = document.body.classList.contains('sidebar-open');
     const inspectorOpen = document.body.classList.contains('inspector-open');
     els.topbar.inert = sidebarOpen || inspectorOpen;
@@ -2039,6 +2051,198 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
     });
   }
 
+  /* ==========================================================
+   * 6.1 前端九宫格安全门禁与 3D 翻转小丑
+   * ======================================================== */
+  const PASSCODE_SECRET = '2580';
+  const UNLOCK_STORAGE_KEY = 'cyberlab.unlocked';
+  let passcodeBuffer = '';
+  let isFlipping = false;
+
+  function isAppUnlocked() {
+    try {
+      return sessionStorage.getItem(UNLOCK_STORAGE_KEY) === '1' ||
+        localStorage.getItem(UNLOCK_STORAGE_KEY) === '1';
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function setAppUnlocked(unlocked) {
+    try {
+      if (unlocked) {
+        sessionStorage.setItem(UNLOCK_STORAGE_KEY, '1');
+      } else {
+        sessionStorage.removeItem(UNLOCK_STORAGE_KEY);
+        localStorage.removeItem(UNLOCK_STORAGE_KEY);
+      }
+    } catch (_) {}
+  }
+
+  function updateLockDots() {
+    if (!els.lockDots) return;
+    const dots = els.lockDots.querySelectorAll('.lab-lock-dot');
+    dots.forEach(function (dot, idx) {
+      dot.classList.toggle('is-active', idx < passcodeBuffer.length);
+    });
+  }
+
+  function resetPasscodeUI() {
+    passcodeBuffer = '';
+    isFlipping = false;
+    if (els.lockDots) {
+      els.lockDots.classList.remove('is-error', 'is-success');
+    }
+    updateLockDots();
+  }
+
+  function flipToClown() {
+    if (isFlipping || !els.cardFlipper) return;
+    isFlipping = true;
+    if (els.lockDots) {
+      els.lockDots.classList.add('is-error');
+    }
+    setTimeout(function () {
+      if (els.cardFlipper) {
+        els.cardFlipper.classList.remove('is-returning');
+        els.cardFlipper.classList.add('is-flipped');
+      }
+      isFlipping = false;
+    }, 150);
+  }
+
+  function returnFromClown() {
+    if (isFlipping || !els.cardFlipper) return;
+    if (!els.cardFlipper.classList.contains('is-flipped')) return;
+    isFlipping = true;
+
+    // 沿完全相同的旋转方向继续顺时针回旋 180°: rotateY(180deg) -> rotateY(360deg)
+    els.cardFlipper.classList.remove('is-flipped');
+    els.cardFlipper.classList.add('is-returning');
+
+    let hasEnded = false;
+    function finalize() {
+      if (hasEnded) return;
+      hasEnded = true;
+      if (els.cardFlipper) {
+        els.cardFlipper.removeEventListener('transitionend', onTransitionEnd);
+        els.cardFlipper.style.transition = 'none';
+        els.cardFlipper.classList.remove('is-returning');
+        els.cardFlipper.style.transform = 'rotateY(0deg)';
+        void els.cardFlipper.offsetWidth;
+        els.cardFlipper.style.transition = '';
+        els.cardFlipper.style.transform = '';
+      }
+      resetPasscodeUI();
+    }
+
+    function onTransitionEnd(e) {
+      if (e.target !== els.cardFlipper || e.propertyName !== 'transform') return;
+      finalize();
+    }
+
+    els.cardFlipper.addEventListener('transitionend', onTransitionEnd);
+    setTimeout(finalize, 850);
+  }
+
+  function handlePasscodeKey(key) {
+    if (isAppUnlocked() || isFlipping) return;
+
+    if (els.cardFlipper && (els.cardFlipper.classList.contains('is-flipped') || els.cardFlipper.classList.contains('is-returning'))) {
+      return;
+    }
+
+    if (key === 'clear') {
+      passcodeBuffer = '';
+      if (els.lockDots) els.lockDots.classList.remove('is-error');
+      updateLockDots();
+      return;
+    }
+
+    if (key === 'backspace') {
+      passcodeBuffer = passcodeBuffer.slice(0, -1);
+      if (els.lockDots) els.lockDots.classList.remove('is-error');
+      updateLockDots();
+      return;
+    }
+
+    if (/^[0-9]$/.test(key)) {
+      if (passcodeBuffer.length >= 4) return;
+      passcodeBuffer += key;
+      updateLockDots();
+
+      if (passcodeBuffer.length === 4) {
+        verifyPasscode();
+      }
+    }
+  }
+
+  function verifyPasscode() {
+    if (passcodeBuffer === PASSCODE_SECRET) {
+      if (els.lockDots) {
+        els.lockDots.classList.remove('is-error');
+        els.lockDots.classList.add('is-success');
+      }
+      isFlipping = true;
+      setTimeout(function () {
+        setAppUnlocked(true);
+        if (els.lockScreen) {
+          els.lockScreen.classList.add('is-hidden');
+        }
+        syncInert();
+        resetPasscodeUI();
+        initCloudWorkspace();
+      }, 200);
+    } else {
+      flipToClown();
+    }
+  }
+
+  function lockWorkbench() {
+    setAppUnlocked(false);
+    resetPasscodeUI();
+    if (els.cardFlipper) {
+      els.cardFlipper.classList.remove('is-flipped', 'is-returning');
+      els.cardFlipper.style.transition = 'none';
+      els.cardFlipper.style.transform = 'rotateY(0deg)';
+      void els.cardFlipper.offsetWidth;
+      els.cardFlipper.style.transition = '';
+      els.cardFlipper.style.transform = '';
+    }
+    if (els.lockScreen) {
+      els.lockScreen.classList.remove('is-hidden');
+    }
+    syncInert();
+  }
+
+  if (els.lockKeypad) {
+    els.lockKeypad.addEventListener('click', function (e) {
+      const btn = e.target.closest('.lab-key');
+      if (!btn) return;
+      const key = btn.dataset.key;
+      if (key) handlePasscodeKey(key);
+    });
+  }
+
+  if (els.clownBack) {
+    els.clownBack.addEventListener('click', function (e) {
+      e.preventDefault();
+      returnFromClown();
+    });
+    els.clownBack.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        returnFromClown();
+      }
+    });
+  }
+
+  if (els.lockBtn) {
+    els.lockBtn.addEventListener('click', function () {
+      lockWorkbench();
+    });
+  }
+
   els.menuBtn.addEventListener('click', toggleSidebar);
   els.sidebarClose.addEventListener('click', closeSidebar);
   els.sidebarOverlay.addEventListener('click', closeSidebar);
@@ -2092,6 +2296,26 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
     }
   });
   document.addEventListener('keydown', function (e) {
+    if (!isAppUnlocked()) {
+      if (els.cardFlipper && (els.cardFlipper.classList.contains('is-flipped') || els.cardFlipper.classList.contains('is-returning'))) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') {
+          e.preventDefault();
+          returnFromClown();
+        }
+        return;
+      }
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        handlePasscodeKey(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handlePasscodeKey('backspace');
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handlePasscodeKey('clear');
+      }
+      return;
+    }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && !e.isComposing && e.keyCode !== 229) {
       e.preventDefault();
       if (els.commandDialog.open) closeCommand();
@@ -2165,7 +2389,12 @@ import { createRunTelemetry, normalizeRunTelemetry, toDiagnostic } from './scrip
   setRunState('idle');
   updateNetworkStatus();
   renderAll();
-  initCloudWorkspace();
+  if (isAppUnlocked()) {
+    if (els.lockScreen) els.lockScreen.classList.add('is-hidden');
+    initCloudWorkspace();
+  } else {
+    if (els.lockScreen) els.lockScreen.classList.remove('is-hidden');
+  }
   autoResize();
   updateCharCount();
   updateSendButton();

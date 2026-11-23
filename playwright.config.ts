@@ -22,6 +22,7 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: BASE_URL,
+    storageState: 'tests/support/unlocked-storage-state.json',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

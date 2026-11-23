@@ -11,6 +11,129 @@
   <link rel="stylesheet" href="./styles/lab.css" />
 </head>
 <body>
+  <!-- ==================== 前端九宫格安全门禁与 3D 翻转小丑 ==================== -->
+  <div id="lab-lock-screen" class="lab-lock-screen">
+    <div class="lab-lock-card-scene">
+      <div id="lab-card-flipper" class="lab-card-flipper">
+        <!-- 正面：九宫格安全密码锁 -->
+        <div class="lab-card-face lab-card-front" aria-label="安全门禁密码锁">
+          <div class="lab-lock-header">
+            <div class="lab-lock-badge" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+            </div>
+            <h2 class="lab-lock-title">SECURITY ACCESS</h2>
+            <p class="lab-lock-subtitle">CYBER//LAB 实验室安全门禁</p>
+          </div>
+
+          <div class="lab-lock-dots" id="lab-lock-dots" aria-label="密码掩码指示器" role="status">
+            <span class="lab-lock-dot"></span>
+            <span class="lab-lock-dot"></span>
+            <span class="lab-lock-dot"></span>
+            <span class="lab-lock-dot"></span>
+          </div>
+
+          <div class="lab-lock-keypad" role="group" aria-label="数字小键盘">
+            <button class="lab-key" type="button" data-key="1">1</button>
+            <button class="lab-key" type="button" data-key="2">2</button>
+            <button class="lab-key" type="button" data-key="3">3</button>
+            <button class="lab-key" type="button" data-key="4">4</button>
+            <button class="lab-key" type="button" data-key="5">5</button>
+            <button class="lab-key" type="button" data-key="6">6</button>
+            <button class="lab-key" type="button" data-key="7">7</button>
+            <button class="lab-key" type="button" data-key="8">8</button>
+            <button class="lab-key" type="button" data-key="9">9</button>
+            <button class="lab-key lab-key-action" type="button" data-key="clear" aria-label="清空">C</button>
+            <button class="lab-key" type="button" data-key="0">0</button>
+            <button class="lab-key lab-key-action" type="button" data-key="backspace" aria-label="退格">⌫</button>
+          </div>
+        </div>
+
+        <!-- 背面：纯图直点马戏团小丑（严禁文字与多余按钮，小丑全幅即热区） -->
+        <div class="lab-card-face lab-card-back" id="lab-clown-back" role="button" tabindex="0" aria-label="小丑警告：点击图片翻转复原">
+          <svg class="lab-clown-art" viewBox="0 0 320 420" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <radialGradient id="clown-bg-glow" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#ff0055" stop-opacity="0.32" />
+                <stop offset="60%" stop-color="#3d0014" stop-opacity="0.4" />
+                <stop offset="100%" stop-color="#07090e" stop-opacity="0.95" />
+              </radialGradient>
+              <linearGradient id="hat-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#9d174d" />
+                <stop offset="40%" stop-color="#be185d" />
+                <stop offset="70%" stop-color="#4f46e5" />
+                <stop offset="100%" stop-color="#06b6d4" />
+              </linearGradient>
+              <radialGradient id="nose-grad" cx="35%" cy="30%" r="50%">
+                <stop offset="0%" stop-color="#ffffff" />
+                <stop offset="25%" stop-color="#ff3366" />
+                <stop offset="75%" stop-color="#c9002f" />
+                <stop offset="100%" stop-color="#4a0011" />
+              </radialGradient>
+              <filter id="alert-glow" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="3.5" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            <!-- 纯黑底色与发光警示外框 -->
+            <rect width="320" height="420" rx="14" fill="#07090e" />
+            <rect x="5" y="5" width="310" height="410" rx="10" fill="url(#clown-bg-glow)" stroke="#ff0055" stroke-width="2" filter="url(#alert-glow)" />
+            <rect x="12" y="12" width="296" height="396" rx="8" fill="none" stroke="#ff3366" stroke-width="0.75" stroke-dasharray="8 6" opacity="0.65" />
+
+            <!-- 警示四角角标 -->
+            <path d="M16 32V16H32" fill="none" stroke="#00f5b8" stroke-width="2.5" />
+            <path d="M304 32V16H288" fill="none" stroke="#00f5b8" stroke-width="2.5" />
+            <path d="M16 388V404H32" fill="none" stroke="#00f5b8" stroke-width="2.5" />
+            <path d="M304 388V404H288" fill="none" stroke="#00f5b8" stroke-width="2.5" />
+
+            <!-- 马戏团波浪小丑领口 (Ruff Collar) -->
+            <path d="M60 380 Q90 320 120 370 Q160 310 200 370 Q230 320 260 380 Q210 410 160 405 Q110 410 60 380 Z" fill="#ff0055" opacity="0.9" />
+            <path d="M75 385 Q115 340 160 375 Q205 340 245 385 Q205 400 160 398 Q115 400 75 385 Z" fill="#00f5b8" opacity="0.85" />
+
+            <!-- 马戏团高顶小丑帽 -->
+            <path d="M110 135 L160 30 L210 135 Z" fill="url(#hat-grad)" />
+            <ellipse cx="160" cy="135" rx="55" ry="12" fill="#1e1b4b" stroke="#00f5b8" stroke-width="1.5" />
+            <circle cx="160" cy="28" r="11" fill="#ff0055" filter="url(#alert-glow)" />
+
+            <!-- 小丑脸颊轮廓 -->
+            <ellipse cx="160" cy="225" rx="68" ry="80" fill="#f1f5f9" stroke="#334155" stroke-width="1" />
+
+            <!-- 脸部经典小丑十字油彩 (蓝/紫眼妆) -->
+            <path d="M125 170 L135 220 L125 250 L115 220 Z" fill="#6366f1" />
+            <path d="M195 170 L205 220 L195 250 L185 220 Z" fill="#6366f1" />
+
+            <!-- 狡黠发光的双眼 -->
+            <ellipse cx="125" cy="210" rx="14" ry="9" fill="#07090e" />
+            <ellipse cx="195" cy="210" rx="14" ry="9" fill="#07090e" />
+            <circle cx="125" cy="210" r="5" fill="#facc15" filter="url(#alert-glow)" />
+            <circle cx="195" cy="210" r="5" fill="#facc15" filter="url(#alert-glow)" />
+            <circle cx="126" cy="209" r="1.8" fill="#ffffff" />
+            <circle cx="196" cy="209" r="1.8" fill="#ffffff" />
+
+            <!-- 经典弧度拱形眉毛 -->
+            <path d="M108 185 Q125 168 142 185" fill="none" stroke="#be185d" stroke-width="3.5" stroke-linecap="round" />
+            <path d="M178 185 Q195 168 212 185" fill="none" stroke="#be185d" stroke-width="3.5" stroke-linecap="round" />
+
+            <!-- 核心标志：立体高光发光红鼻球 -->
+            <circle cx="160" cy="235" r="22" fill="url(#nose-grad)" filter="url(#alert-glow)" />
+
+            <!-- 夸张裂开的戏谑笑容与鲜红大嘴唇 -->
+            <path d="M105 260 Q160 325 215 260 Q160 288 105 260 Z" fill="#c9002f" stroke="#ff0055" stroke-width="2" />
+            <!-- 嘴部白色牙齿油彩 -->
+            <path d="M118 266 Q160 288 202 266 Q160 274 118 266 Z" fill="#ffffff" />
+
+            <!-- 脸颊腮红 -->
+            <circle cx="102" cy="245" r="10" fill="#ff0055" opacity="0.35" />
+            <circle cx="218" cy="245" r="10" fill="#ff0055" opacity="0.35" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="app-shell" id="lab-app">
     <header class="topbar" id="lab-topbar">
       <div class="topbar-left">
@@ -36,6 +159,9 @@
         </button>
         <button id="lab-observe-btn" class="lab-observe-button" type="button" aria-label="打开观测台" aria-expanded="false" aria-controls="sys-panel">
           <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14"/><circle cx="7" cy="5" r="1.8" fill="currentColor"/><circle cx="13" cy="10" r="1.8" fill="currentColor"/><circle cx="8" cy="15" r="1.8" fill="currentColor"/></svg><span>观测台</span>
+        </button>
+        <button id="lab-lock-btn" class="lab-observe-button" type="button" aria-label="锁定工作台" title="锁定工作台">
+          <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="9" width="12" height="9" rx="2"/><path d="M7 9V6a3 3 0 016 0v3"/></svg><span>锁定</span>
         </button>
         <span class="topbar-clock" id="topbar-clock" aria-hidden="true">--:--:--</span>
       </div>

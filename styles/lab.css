@@ -124,3 +124,251 @@
 }
 .lab-wiki-feedback { margin-top: 8px; font-size: 12px; color: var(--accent); }
 .lab-wiki-feedback.is-error { color: var(--warning); }
+
+/* ==================== 前端九宫格门禁与 3D 小丑翻转动效 ==================== */
+.lab-lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(7, 9, 14, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.3s ease, visibility 0.3s;
+}
+
+.lab-lock-screen.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.lab-lock-card-scene {
+  perspective: 1200px;
+  width: min(340px, 92vw);
+  height: 480px;
+  position: relative;
+}
+
+.lab-card-flipper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  transition: transform 0.75s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lab-card-flipper.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.lab-card-flipper.is-returning {
+  transform: rotateY(360deg);
+}
+
+.lab-card-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* 正面九宫格卡片 */
+.lab-card-front {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 26px 22px 22px;
+  background: #0d1219;
+  border: 1px solid rgba(0, 245, 184, 0.22);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 24px rgba(0, 245, 184, 0.08);
+}
+
+.lab-lock-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.lab-lock-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: #111e22;
+  border: 1px solid rgba(0, 245, 184, 0.35);
+  color: #00f5b8;
+  box-shadow: 0 0 16px rgba(0, 245, 184, 0.2);
+}
+
+.lab-lock-title {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: #f1f5f9;
+}
+
+.lab-lock-subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #64748b;
+  letter-spacing: 0.04em;
+}
+
+/* 4位圆点掩码指示器 */
+.lab-lock-dots {
+  display: flex;
+  gap: 14px;
+  margin: 14px 0;
+}
+
+.lab-lock-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid #334155;
+  background: transparent;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.lab-lock-dot.is-active {
+  border-color: #00f5b8;
+  background: #00f5b8;
+  box-shadow: 0 0 10px rgba(0, 245, 184, 0.7);
+  transform: scale(1.15);
+}
+
+.lab-lock-dots.is-error .lab-lock-dot {
+  border-color: #ff0055;
+  background: #ff0055;
+  box-shadow: 0 0 12px rgba(255, 0, 85, 0.8);
+  animation: dot-shake 0.35s ease;
+}
+
+.lab-lock-dots.is-success .lab-lock-dot {
+  border-color: #00f5b8;
+  background: #00f5b8;
+  box-shadow: 0 0 16px rgba(0, 245, 184, 0.9);
+}
+
+@keyframes dot-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* 九宫格小键盘 */
+.lab-lock-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  width: 100%;
+  max-width: 250px;
+}
+
+.lab-key {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  font-family: var(--mono);
+  font-size: 19px;
+  font-weight: 600;
+  color: #f1f5f9;
+  background: #131c26;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.14s ease;
+}
+
+.lab-key:hover {
+  border-color: rgba(0, 245, 184, 0.45);
+  background: #1a2736;
+  color: #00f5b8;
+  box-shadow: 0 0 12px rgba(0, 245, 184, 0.2);
+}
+
+.lab-key:active {
+  transform: scale(0.92);
+  background: #24354a;
+}
+
+.lab-key-action {
+  font-size: 15px;
+  color: #94a3b8;
+  background: #0f1620;
+}
+
+.lab-key-action:hover {
+  color: #ff3366;
+  border-color: rgba(255, 51, 102, 0.4);
+  box-shadow: 0 0 12px rgba(255, 51, 102, 0.2);
+}
+
+/* 背面小丑纯图（严禁任何文字或按钮，全幅即点击热区） */
+.lab-card-back {
+  transform: rotateY(180deg);
+  background: #07090e;
+  border: 2px solid #ff0055;
+  box-shadow: 0 0 35px rgba(255, 0, 85, 0.45), inset 0 0 24px rgba(255, 0, 85, 0.2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease;
+}
+
+.lab-card-back:hover {
+  transform: rotateY(180deg) scale(1.025);
+  box-shadow: 0 0 45px rgba(255, 0, 85, 0.65), inset 0 0 32px rgba(255, 0, 85, 0.35);
+}
+
+.lab-card-back:active {
+  transform: rotateY(180deg) scale(0.99);
+}
+
+.lab-clown-art {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+@media (max-width: 480px) {
+  .lab-lock-card-scene {
+    height: 450px;
+  }
+  .lab-card-front {
+    padding: 20px 16px 16px;
+  }
+  .lab-lock-keypad {
+    gap: 8px;
+    max-width: 230px;
+  }
+  .lab-key {
+    font-size: 17px;
+  }
+}
